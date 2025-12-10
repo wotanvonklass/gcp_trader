@@ -1,0 +1,29 @@
+{
+  "name": "benzinga-vm-scraper",
+  "version": "1.0.0",
+  "description": "Headless Chrome scraper for Benzinga Pro on GCP Compute Engine",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "dev:scraper": "node scraper-dev.js",
+    "dev:scraper:simple": "node scraper-dev-simple.js",
+    "dev:scraper:watch": "nodemon scraper-dev.js",
+    "deploy": "./deploy-vm.sh"
+  },
+  "dependencies": {
+    "@google-cloud/pubsub": "^4.0.7",
+    "@google-cloud/storage": "^7.7.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "puppeteer": "^21.6.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,6 @@
+{"timestamp": "2025-11-28T13:20:22.328793Z", "severity": "INFO", "message": "Note: NumExpr detected 10 cores but \"NUMEXPR_MAX_THREADS\" not set, so enforcing safe limit of 8.", "logger": "numexpr.utils", "module": "utils", "function": "_init_num_threads", "line": 148}
+{"timestamp": "2025-11-28T13:20:22.328885Z", "severity": "INFO", "message": "NumExpr defaulting to 8 threads.", "logger": "numexpr.utils", "module": "utils", "function": "_init_num_threads", "line": 160}
+Traceback (most recent call last):
+  File "/Users/wotanvonklass/Development/GCP-Trader/nautilus_news_trader/strategies/trend/run.py", line 40, in <module>
+    from nautilus_trader.adapters.polygon.config import PolygonDataClientConfig
+ModuleNotFoundError: No module named 'nautilus_trader.adapters.polygon'

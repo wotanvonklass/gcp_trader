@@ -1,0 +1,150 @@
+# GCP-Trader Docker Compose
+# Consolidates all services into a single deployment
+#
+# Services:
+#   - firehose-proxy:   Connects to Polygon.io (port 8767 internal)
+#   - ms-aggregator:    Generates millisecond bars (port 8768 internal)
+#   - filtered-proxy:   Client connection point (port 8765 exposed)
+#   - alpaca-proxy:     Trade updates WebSocket (port 8099 exposed)
+#   - benzinga-ws:      Benzinga WebSocket news client
+#   - benzinga-scraper: Benzinga Pro browser scraper
+#   - news-trader:      NautilusTrader news trading system
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Polygon Proxy Stack (Rust)
+  # ============================================
+
+  firehose-proxy:
+    build:
+      context: ../../polygon_proxy/firehose-proxy
+      dockerfile: Dockerfile
+    environment:
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+      - RUST_LOG=info
+    restart: unless-stopped
+    networks:
+      - trading-net
+
+  ms-aggregator:
+    build:
+      context: ../../polygon_proxy/ms-aggregator
+      dockerfile: Dockerfile
+    environment:
+      - FIREHOSE_URL=ws://firehose-proxy:8767
+      - RUST_LOG=info
+    depends_on:
+      - firehose-proxy
+    restart: unless-stopped
+    networks:
+      - trading-net
+
+  filtered-proxy:
+    build:
+      context: ../../polygon_proxy/filtered-proxy
+      dockerfile: Dockerfile
+    environment:
+      - FIREHOSE_URL=ws://firehose-proxy:8767
+      - AGGREGATOR_URL=ws://ms-aggregator:8768
+      - RUST_LOG=info
+    ports:
+      - "8765:8765"
+    depends_on:
+      - firehose-proxy
+      - ms-aggregator
+    restart: unless-stopped
+    networks:
+      - trading-net
+
+  # ============================================
+  # Alpaca Trade Updates Proxy (Rust)
+  # ============================================
+
+  alpaca-proxy:
+    build:
+      context: ../../alpaca_trade_updates_proxy
+      dockerfile: Dockerfile
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - RUST_LOG=info
+    ports:
+      - "8099:8099"
+    restart: unless-stopped
+    networks:
+      - trading-net
+
+  # ============================================
+  # Benzinga News Services
+  # ============================================
+
+  benzinga-ws:
+    build:
+      context: ../../benzinga_ws
+      dockerfile: Dockerfile
+    environment:
+      - BENZINGA_API_KEY=${BENZINGA_API_KEY}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - CHANNEL_FILTER=${CHANNEL_FILTER:-Press Releases}
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/credentials.json
+    volumes:
+      - ${GCP_CREDENTIALS_PATH:-~/.config/gcloud/application_default_credentials.json}:/gcp/credentials.json:ro
+    restart: unless-stopped
+    networks:
+      - trading-net
+
+  benzinga-scraper:
+    build:
+      context: ../../benzinga_scraper
+      dockerfile: Dockerfile
+    environment:
+      - BENZINGA_EMAIL=${BENZINGA_EMAIL}
+      - BENZINGA_PASSWORD=${BENZINGA_PASSWORD}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - PUBSUB_TOPIC=${PUBSUB_TOPIC:-benzinga-news}
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/credentials.json
+    volumes:
+      - ${GCP_CREDENTIALS_PATH:-~/.config/gcloud/application_default_credentials.json}:/gcp/credentials.json:ro
+    # Chrome needs more shared memory
+    shm_size: '2gb'
+    restart: unless-stopped
+    networks:
+      - trading-net
+
+  # ============================================
+  # News Trading System (NautilusTrader)
+  # ============================================
+
+  news-trader:
+    build:
+      context: ../../nautilus_news_trader
+      dockerfile: Dockerfile
+    environment:
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - PUBSUB_SUBSCRIPTION=${PUBSUB_SUBSCRIPTION:-benzinga-news-trader}
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+      - POLYGON_PROXY_URL=ws://filtered-proxy:8765
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - ALPACA_PAPER=${ALPACA_PAPER:-true}
+      - TRADE_UPDATES_PROXY_URL=ws://alpaca-proxy:8099
+      - EXIT_DELAY_MINUTES=${EXIT_DELAY_MINUTES:-7}
+      - VOLUME_PERCENTAGE=${VOLUME_PERCENTAGE:-0.05}
+      - MAX_POSITION_USD=${MAX_POSITION_USD:-1000}
+      - MIN_NEWS_VOLUME=${MIN_NEWS_VOLUME:-1000}
+      - MAX_NEWS_AGE_SECONDS=${MAX_NEWS_AGE_SECONDS:-10}
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/credentials.json
+    volumes:
+      - ${GCP_CREDENTIALS_PATH:-~/.config/gcloud/application_default_credentials.json}:/gcp/credentials.json:ro
+    depends_on:
+      - filtered-proxy
+      - alpaca-proxy
+    restart: unless-stopped
+    networks:
+      - trading-net
+
+networks:
+  trading-net:
+    driver: bridge

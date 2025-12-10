@@ -1,0 +1,93 @@
+[2m2025-10-10T13:10:06.274886Z[0m [32m INFO[0m Starting Polygon Millisecond Bar Aggregator
+[2m2025-10-10T13:10:06.274906Z[0m [32m INFO[0m Firehose URL: ws://localhost:8767
+[2m2025-10-10T13:10:06.274909Z[0m [32m INFO[0m Aggregator Port: 8768
+[2m2025-10-10T13:10:06.274911Z[0m [32m INFO[0m Interval Range: 1ms - 60000ms
+[2m2025-10-10T13:10:06.274913Z[0m [32m INFO[0m Timer Interval: 10ms
+[2m2025-10-10T13:10:06.274915Z[0m [32m INFO[0m Bar Delay: 20ms
+[2m2025-10-10T13:10:06.274999Z[0m [32m INFO[0m WebSocket server listening on port 8768
+[2m2025-10-10T13:10:06.275045Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:10:06.275482Z[0m [32m INFO[0m Connected to firehose proxy
+[2m2025-10-10T13:10:06.275510Z[0m [32m INFO[0m Subscribed to T.* from firehose, waiting for data...
+[2m2025-10-10T13:10:09.272900Z[0m [32m INFO[0m New client connection from 127.0.0.1:41114
+[2m2025-10-10T13:10:09.272984Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b (127.0.0.1:41114) connected
+[2m2025-10-10T13:10:09.273066Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b authenticated
+[2m2025-10-10T13:10:49.164580Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.SLE
+[2m2025-10-10T13:10:49.164661Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.GWH
+[2m2025-10-10T13:10:49.164694Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to: 500Ms.SLE, 500Ms.GWH
+[2m2025-10-10T13:14:03.344821Z[0m [31mERROR[0m Upstream connection error: WebSocket error
+[2m2025-10-10T13:14:03.344845Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:08.345262Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:08.345512Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:08.345525Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:13.346428Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:13.346622Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:13.346631Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:18.347921Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:18.348142Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:18.348154Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:23.349574Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:23.349845Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:23.349855Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:28.350946Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:28.351175Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:28.351184Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:33.352264Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:33.352507Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:33.352516Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:38.354116Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:38.354377Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:38.354387Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:43.355716Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:43.355949Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:43.355958Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:48.357067Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:48.357397Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:48.357417Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:53.358830Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:53.359101Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:53.359109Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:14:58.359452Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:14:58.359652Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:14:58.359662Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:15:03.360408Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:15:03.360600Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:15:03.360609Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:15:08.361300Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:15:08.361538Z[0m [31mERROR[0m Upstream connection error: Failed to connect to firehose
+[2m2025-10-10T13:15:08.361548Z[0m [32m INFO[0m Reconnecting to firehose in 5 seconds...
+[2m2025-10-10T13:15:13.362272Z[0m [32m INFO[0m Connecting to firehose at ws://localhost:8767
+[2m2025-10-10T13:15:13.362579Z[0m [32m INFO[0m Connected to firehose proxy
+[2m2025-10-10T13:15:13.362603Z[0m [32m INFO[0m Subscribed to T.* from firehose, waiting for data...
+[2m2025-10-10T13:16:10.634180Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.SLE
+[2m2025-10-10T13:16:10.634207Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.GWH
+[2m2025-10-10T13:16:10.634215Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to: 500Ms.SLE, 500Ms.GWH
+[2m2025-10-10T13:19:17.011551Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.SLE
+[2m2025-10-10T13:19:17.011576Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.GWH
+[2m2025-10-10T13:19:17.011585Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.TSLA
+[2m2025-10-10T13:19:17.011588Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to: 500Ms.SLE, 500Ms.GWH, 500Ms.TSLA
+[2m2025-10-10T13:19:23.771082Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.PWM
+[2m2025-10-10T13:19:23.771108Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.SLE
+[2m2025-10-10T13:19:23.771130Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.GWH
+[2m2025-10-10T13:19:23.771138Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to 500Ms.TSLA
+[2m2025-10-10T13:19:23.771144Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b subscribed to: 500Ms.PWM, 500Ms.SLE, 500Ms.GWH, 500Ms.TSLA
+[2m2025-10-13T13:39:04.515293Z[0m [31mERROR[0m WebSocket error: WebSocket protocol error: Connection reset without closing handshake
+[2m2025-10-13T13:39:04.517179Z[0m [32m INFO[0m Removed all subscriptions for client 05b88546-cf76-4902-a155-6db01097741b
+[2m2025-10-13T13:39:04.517185Z[0m [32m INFO[0m Client 05b88546-cf76-4902-a155-6db01097741b cleaned up
+[2m2025-10-13T13:39:06.046956Z[0m [32m INFO[0m New client connection from 127.0.0.1:34050
+[2m2025-10-13T13:39:06.047018Z[0m [32m INFO[0m Client d61d1a6b-e50e-4c9a-960e-74a4909f6580 (127.0.0.1:34050) connected
+[2m2025-10-13T13:39:06.047068Z[0m [32m INFO[0m Client d61d1a6b-e50e-4c9a-960e-74a4909f6580 authenticated
+[2m2025-10-13T13:45:27.481435Z[0m [31mERROR[0m WebSocket error: WebSocket protocol error: Connection reset without closing handshake
+[2m2025-10-13T13:45:27.481469Z[0m [32m INFO[0m Removed all subscriptions for client d61d1a6b-e50e-4c9a-960e-74a4909f6580
+[2m2025-10-13T13:45:27.481474Z[0m [32m INFO[0m Client d61d1a6b-e50e-4c9a-960e-74a4909f6580 cleaned up
+[2m2025-10-13T13:45:29.089382Z[0m [32m INFO[0m New client connection from 127.0.0.1:36538
+[2m2025-10-13T13:45:29.089524Z[0m [32m INFO[0m Client 78b64618-bf0b-4032-addc-52741abdd01e (127.0.0.1:36538) connected
+[2m2025-10-13T13:45:29.089579Z[0m [32m INFO[0m Client 78b64618-bf0b-4032-addc-52741abdd01e authenticated
+[2m2025-10-13T13:46:14.957369Z[0m [32m INFO[0m Client 78b64618-bf0b-4032-addc-52741abdd01e subscribed to 500Ms.AAPL
+[2m2025-10-13T13:46:14.957393Z[0m [32m INFO[0m Client 78b64618-bf0b-4032-addc-52741abdd01e subscribed to 500Ms.TSLA
+[2m2025-10-13T13:46:14.957398Z[0m [32m INFO[0m Client 78b64618-bf0b-4032-addc-52741abdd01e subscribed to: 500Ms.AAPL, 500Ms.TSLA
+[2m2025-10-13T13:46:49.436222Z[0m [32m INFO[0m New client connection from 127.0.0.1:48264
+[2m2025-10-13T13:46:49.436578Z[0m [32m INFO[0m Client dfcaf5a0-8946-422f-a0aa-d380f72e00b1 (127.0.0.1:48264) connected
+[2m2025-10-13T13:46:49.436815Z[0m [32m INFO[0m Client dfcaf5a0-8946-422f-a0aa-d380f72e00b1 authenticated
+[2m2025-10-13T13:46:51.438436Z[0m [32m INFO[0m Client dfcaf5a0-8946-422f-a0aa-d380f72e00b1 disconnected
+[2m2025-10-13T13:46:51.438450Z[0m [32m INFO[0m Removed all subscriptions for client dfcaf5a0-8946-422f-a0aa-d380f72e00b1
+[2m2025-10-13T13:46:51.438453Z[0m [32m INFO[0m Client dfcaf5a0-8946-422f-a0aa-d380f72e00b1 cleaned up

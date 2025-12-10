@@ -1,0 +1,13 @@
+# Core dependencies
+google-cloud-pubsub==2.18.4
+requests==2.31.0
+python-dotenv==1.0.0
+
+# V16 dependencies (trend strategy)
+pytz>=2023.3
+numpy>=1.24.0
+pandas>=2.0.0
+
+# NautilusTrader (private fork with Alpaca execution adapters)
+# Installed from source: /opt/nautilus_trader_private
+# Build command: cd /opt/nautilus_trader_private && make install

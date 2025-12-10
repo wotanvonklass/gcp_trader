@@ -33,7 +33,7 @@ class PubSubNewsControllerConfig(ActorConfig, frozen=True):
 
     # News filtering
     min_news_age_seconds: int = 2
-    max_news_age_seconds: int = 10
+    max_news_age_seconds: int = 30
 
     # Trading parameters
     volume_percentage: float = 0.05
@@ -42,6 +42,10 @@ class PubSubNewsControllerConfig(ActorConfig, frozen=True):
     limit_order_offset_pct: float = 0.01
     exit_delay_minutes: int = 7
     extended_hours: bool = True
+
+    # Parallel test mode - spawn second strategy at different volume %
+    parallel_test_mode: bool = False
+    parallel_volume_percentage: float = 0.10  # 10% for parallel test
 
     # Polygon API
     polygon_api_key: str = ""
@@ -90,6 +94,12 @@ class PubSubNewsController(Controller):
         self.log.info(f"📊 Volume %: {self._controller_config.volume_percentage * 100}%")
         self.log.info(f"⏱️ Exit delay: {self._controller_config.exit_delay_minutes} minutes")
         self.log.info(f"🌙 Extended hours: {self._controller_config.extended_hours}")
+
+        # Log parallel test mode
+        if self._controller_config.parallel_test_mode:
+            self.log.info(f"🔀 PARALLEL TEST MODE ENABLED - will spawn TWO strategies per news:")
+            self.log.info(f"   📊 Primary: {self._controller_config.volume_percentage * 100}% volume (news_ prefix)")
+            self.log.info(f"   📊 Parallel: {self._controller_config.parallel_volume_percentage * 100}% volume (news10_ prefix)")
 
         # Start Pub/Sub subscription in background
         self._start_pubsub_subscription()
@@ -214,9 +224,15 @@ class PubSubNewsController(Controller):
             news_id = news_data.get('id', '')
 
             # Use news ID as correlation ID for end-to-end tracing
-            # If no ID, generate a short UUID
+            # Prefix with ticker for easier filtering/searching
             if news_id:
-                correlation_id = str(news_id)
+                base_id = str(news_id)
+                # Prefix with first ticker if available
+                if tickers and len(tickers) > 0:
+                    first_ticker = tickers[0].split(':')[-1]  # Remove exchange prefix if present
+                    correlation_id = f"{first_ticker}_{base_id}"
+                else:
+                    correlation_id = base_id
             else:
                 import uuid
                 correlation_id = str(uuid.uuid4())[:8]
@@ -226,15 +242,11 @@ class PubSubNewsController(Controller):
             self.log.info(f"🆔 [TRACE:{correlation_id}] News ID: {news_id if news_id else 'generated'}")
 
             # Try different timestamp fields in order of preference
-            # published/publishedAt = actual Benzinga publication time
-            # updated/updatedAt = when news was updated
-            # created = when added to our system
+            # createdAt = Benzinga's publication time (ISO format)
+            # updatedAt = when news was updated
             # capturedAt = when we captured it
-            pub_time_str = (news_data.get('published') or
-                           news_data.get('publishedAt') or
-                           news_data.get('updated') or
+            pub_time_str = (news_data.get('createdAt') or
                            news_data.get('updatedAt') or
-                           news_data.get('created') or
                            news_data.get('capturedAt'))
 
             if not tickers:
@@ -259,9 +271,7 @@ class PubSubNewsController(Controller):
             self.log.info(f"🔗 [TRACE:{correlation_id}] URL: {url}")
             self.log.info(f"📅 [TRACE:{correlation_id}] Published: {pub_time_str}, Now: {now.isoformat()}")
 
-            if age_seconds < self._controller_config.min_news_age_seconds:
-                self.log.info(f"⏭️  [TRACE:{correlation_id}] News too fresh: {age_seconds:.1f}s < {self._controller_config.min_news_age_seconds}s")
-                return
+            # No minimum age check - process news as fast as possible
 
             if age_seconds > self._controller_config.max_news_age_seconds:
                 self.log.info(f"⏭️  [TRACE:{correlation_id}] News too old: {age_seconds:.1f}s > {self._controller_config.max_news_age_seconds}s")
@@ -280,32 +290,36 @@ class PubSubNewsController(Controller):
                 # For test news (with [TEST] in headline), skip Polygon check and use mock data
                 if '[TEST]' in headline:
                     self.log.info(f"🧪 [TRACE:{correlation_id}] TEST NEWS detected - using mock volume data")
+                    # Fetch real price from Alpaca for test orders to actually fill
+                    test_price = self._get_alpaca_quote(symbol)
+                    if not test_price:
+                        self.log.warning(f"⚠️  [TRACE:{correlation_id}] Could not get Alpaca quote for {symbol}, using fallback $100")
+                        test_price = 100.00
+                    self.log.info(f"🧪 [TRACE:{correlation_id}] Using real price from Alpaca: ${test_price:.2f}")
                     volume_data = {
                         'symbol': symbol,
                         'volume': 10000,  # Mock volume
-                        'avg_price': 150.00,  # Mock price
-                        'last_price': 150.00,
+                        'avg_price': test_price,  # Real price from Alpaca
+                        'last_price': test_price,
                         'bars_count': 3,
                         'timestamp': datetime.now(timezone.utc)
                     }
                 else:
                     # Check Polygon for trading activity
                     self.log.info(f"📊 [TRACE:{correlation_id}] Checking {symbol} on Polygon...")
-                    volume_data = self._check_polygon_trading(symbol)
+                    volume_data = self._check_polygon_trading(symbol, correlation_id)
 
                     if not volume_data:
-                        self.log.info(f"⏭️  [TRACE:{correlation_id}] No trading activity for {symbol}, skipping")
+                        self.log.info(f"⏭️  [TRACE:{correlation_id}] DECISION: Skip {symbol} - no trading activity in last 3s")
                         continue
 
-                self.log.info(f"✅ [TRACE:{correlation_id}] Trading detected: {volume_data['volume']} shares @ ${volume_data['last_price']:.2f}")
+                self.log.info(f"✅ [TRACE:{correlation_id}] Trading detected: {volume_data['volume']:,.0f} shares @ ${volume_data['last_price']:.2f}")
 
                 # Calculate position size
-                position_size = self._calculate_position_size(volume_data)
+                position_size = self._calculate_position_size(volume_data, correlation_id)
 
                 if position_size == 0:
                     continue
-
-                self.log.info(f"💰 [TRACE:{correlation_id}] Position size: ${position_size:.2f}")
 
                 # Spawn strategy for this ticker
                 self._spawn_news_trading_strategy(symbol, position_size, volume_data, headline, pub_time, url, correlation_id)
@@ -315,7 +329,46 @@ class PubSubNewsController(Controller):
             import traceback
             self.log.error(f"Traceback: {traceback.format_exc()}")
 
-    def _check_polygon_trading(self, symbol: str) -> Optional[dict]:
+    def _get_alpaca_quote(self, symbol: str) -> Optional[float]:
+        """Get current quote from Alpaca for a symbol."""
+        try:
+            import requests
+            import os
+
+            api_key = os.environ.get('ALPACA_API_KEY')
+            secret_key = os.environ.get('ALPACA_SECRET_KEY')
+
+            if not api_key or not secret_key:
+                self.log.warning("Alpaca credentials not found in environment")
+                return None
+
+            url = f"https://data.alpaca.markets/v2/stocks/{symbol}/quotes/latest"
+            headers = {
+                'APCA-API-KEY-ID': api_key,
+                'APCA-API-SECRET-KEY': secret_key
+            }
+
+            response = requests.get(url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                quote = data.get('quote', {})
+                # Use ask price for buy orders (what we'll pay)
+                ask_price = quote.get('ap')
+                if ask_price:
+                    return float(ask_price)
+                # Fallback to bid price
+                bid_price = quote.get('bp')
+                if bid_price:
+                    return float(bid_price)
+            else:
+                self.log.warning(f"Alpaca quote request failed: {response.status_code}")
+                return None
+
+        except Exception as e:
+            self.log.error(f"Error getting Alpaca quote: {e}")
+            return None
+
+    def _check_polygon_trading(self, symbol: str, correlation_id: str = "") -> Optional[dict]:
         """Check if there has been trading activity on Polygon in last 3 seconds."""
         try:
             import requests
@@ -338,16 +391,21 @@ class PubSubNewsController(Controller):
                 'apiKey': self._controller_config.polygon_api_key
             }
 
+            self.log.info(f"   📊 [TRACE:{correlation_id}] Polygon query: {symbol} from {three_sec_ago.strftime('%H:%M:%S.%f')[:-3]} to {now.strftime('%H:%M:%S.%f')[:-3]} UTC")
+
             response = requests.get(url, params=params, timeout=5)
             response.raise_for_status()
             data = response.json()
 
-            if data.get('resultsCount', 0) == 0:
-                self.log.info(f"📊 No trading data for {symbol} in last 3s")
+            results_count = data.get('resultsCount', 0)
+
+            if results_count == 0:
+                self.log.info(f"   📊 [TRACE:{correlation_id}] Polygon response: 0 bars in 3s window → NO ACTIVITY")
                 return None
 
             results = data.get('results', [])
             if not results:
+                self.log.info(f"   📊 [TRACE:{correlation_id}] Polygon response: resultsCount={results_count} but empty results → NO ACTIVITY")
                 return None
 
             # Calculate total volume and average price over last 3 seconds
@@ -355,6 +413,12 @@ class PubSubNewsController(Controller):
             total_value = sum(bar['v'] * bar['c'] for bar in results)
             avg_price = total_value / total_volume if total_volume > 0 else 0
             last_bar = results[-1]
+
+            # Log detailed bar info
+            self.log.info(f"   📊 [TRACE:{correlation_id}] Polygon response: {len(results)} bars, {total_volume:,.0f} shares total")
+            for i, bar in enumerate(results):
+                bar_time = datetime.fromtimestamp(bar['t'] / 1000, tz=timezone.utc)
+                self.log.info(f"      [TRACE:{correlation_id}] Bar {i+1}: {bar_time.strftime('%H:%M:%S')} | {bar['v']:,.0f} shares @ ${bar['c']:.2f}")
 
             return {
                 'symbol': symbol,
@@ -366,24 +430,29 @@ class PubSubNewsController(Controller):
             }
 
         except Exception as e:
-            self.log.error(f"Error checking Polygon for {symbol}: {e}")
+            self.log.error(f"   ❌ [TRACE:{correlation_id}] Polygon API error for {symbol}: {e}")
             return None
 
-    def _calculate_position_size(self, volume_data: dict) -> float:
+    def _calculate_position_size(self, volume_data: dict, correlation_id: str = "") -> float:
         """Calculate position size based on volume. Returns USD amount to trade."""
         # Calculate 5% of last 3s USD volume
         usd_volume = volume_data['volume'] * volume_data['avg_price']
         position_size = usd_volume * self._controller_config.volume_percentage
 
+        # Log calculation details
+        self.log.info(f"   💰 [TRACE:{correlation_id}] Position calc: {volume_data['volume']:,.0f} shares × ${volume_data['avg_price']:.2f} = ${usd_volume:,.2f} USD volume")
+        self.log.info(f"   💰 [TRACE:{correlation_id}] Position calc: ${usd_volume:,.2f} × {self._controller_config.volume_percentage*100:.0f}% = ${position_size:,.2f}")
+
         # Apply limits
         if position_size < self._controller_config.min_position_size:
-            self.log.info(f"Position ${position_size:.2f} < min ${self._controller_config.min_position_size}, skipping")
+            self.log.info(f"   ⏭️  [TRACE:{correlation_id}] DECISION: Skip - position ${position_size:.2f} < min ${self._controller_config.min_position_size}")
             return 0
 
         if position_size > self._controller_config.max_position_size:
-            self.log.info(f"Position ${position_size:.2f} > max ${self._controller_config.max_position_size}, capping")
+            self.log.info(f"   ⚠️  [TRACE:{correlation_id}] Position ${position_size:.2f} > max ${self._controller_config.max_position_size}, capping")
             position_size = self._controller_config.max_position_size
 
+        self.log.info(f"   ✅ [TRACE:{correlation_id}] DECISION: Trade - position size ${position_size:,.2f}")
         return position_size
 
     def _has_position_or_strategy(self, ticker: str) -> bool:
@@ -393,9 +462,10 @@ class PubSubNewsController(Controller):
         for strategy in all_strategies:
             if hasattr(strategy, 'ticker') and strategy.ticker == ticker:
                 if strategy.state.name == "RUNNING":
+                    self.log.debug(f"Found running strategy for {ticker}")
                     return True
 
-        # Check for existing positions
+        # Check for existing positions in NautilusTrader cache
         from nautilus_trader.model.identifiers import InstrumentId
         try:
             instrument_id = InstrumentId.from_str(f"{ticker}.ALPACA")
@@ -403,8 +473,35 @@ class PubSubNewsController(Controller):
 
             for position in positions:
                 if position.is_open():
+                    self.log.debug(f"Found open position in portfolio for {ticker}")
                     return True
         except:
+            pass
+
+        # Also check Alpaca API directly (positions may exist but not be in NautilusTrader cache after restart)
+        try:
+            import requests
+            import os
+
+            api_key = os.environ.get('ALPACA_API_KEY')
+            secret_key = os.environ.get('ALPACA_SECRET_KEY')
+
+            if api_key and secret_key:
+                url = f"https://paper-api.alpaca.markets/v2/positions/{ticker}"
+                headers = {
+                    'APCA-API-KEY-ID': api_key,
+                    'APCA-API-SECRET-KEY': secret_key
+                }
+
+                response = requests.get(url, headers=headers, timeout=5)
+                if response.status_code == 200:
+                    position_data = response.json()
+                    qty = float(position_data.get('qty', 0))
+                    if qty != 0:
+                        self.log.info(f"🛡️ Found existing Alpaca position for {ticker}: {qty} shares")
+                        return True
+        except Exception as e:
+            self.log.debug(f"Alpaca position check failed for {ticker}: {e}")
             pass
 
         return False
@@ -463,8 +560,64 @@ class PubSubNewsController(Controller):
 
             self.log.info(f"   ✅ [TRACE:{correlation_id}] Strategy started successfully: {strategy_id}")
 
+            # PARALLEL TEST MODE: Spawn a second strategy at different volume %
+            if self._controller_config.parallel_test_mode:
+                self._spawn_parallel_strategy(ticker, volume_data, headline, pub_time, url, correlation_id, instrument)
+
         except Exception as e:
             self.log.error(f"   ❌ Failed to spawn strategy: {e}")
+            import traceback
+            self.log.error(f"Traceback: {traceback.format_exc()}")
+
+    def _spawn_parallel_strategy(self, ticker: str, volume_data: dict, headline: str, pub_time: datetime, url: str, correlation_id: str, instrument):
+        """Spawn a parallel strategy at 10% volume for testing parallel execution."""
+        try:
+            from strategies.news_volume_strategy import NewsVolumeStrategy, NewsVolumeStrategyConfig
+            from decimal import Decimal
+
+            # Calculate position size at parallel volume percentage (10%)
+            usd_volume = volume_data['volume'] * volume_data['avg_price']
+            parallel_position_size = usd_volume * self._controller_config.parallel_volume_percentage
+
+            # Apply same limits
+            if parallel_position_size < self._controller_config.min_position_size:
+                self.log.info(f"   ⏭️  [TRACE:{correlation_id}] Parallel strategy skip - position ${parallel_position_size:.2f} < min")
+                return
+
+            if parallel_position_size > self._controller_config.max_position_size:
+                parallel_position_size = self._controller_config.max_position_size
+
+            parallel_correlation_id = f"{correlation_id}_10pct"
+            self.log.info(f"   🔀 [TRACE:{parallel_correlation_id}] SPAWNING PARALLEL 10% STRATEGY for {ticker}")
+            self.log.info(f"      [TRACE:{parallel_correlation_id}] Position size: ${parallel_position_size:.2f}")
+
+            # Create parallel strategy with news10_ prefix
+            parallel_strategy_id = f"news10_{ticker}_{int(pub_time.timestamp())}"
+            parallel_config = NewsVolumeStrategyConfig(
+                ticker=ticker,
+                instrument_id=str(instrument.id),
+                strategy_id=parallel_strategy_id,
+
+                position_size_usd=Decimal(str(parallel_position_size)),
+                entry_price=Decimal(str(volume_data['last_price'])),
+                limit_order_offset_pct=self._controller_config.limit_order_offset_pct,
+                exit_delay_minutes=self._controller_config.exit_delay_minutes,
+                extended_hours=self._controller_config.extended_hours,
+
+                news_headline=f"[10%] {headline[:190]}" if headline else "[10%]",
+                publishing_date=pub_time.isoformat(),
+                news_url=url,
+                correlation_id=parallel_correlation_id,
+            )
+
+            parallel_strategy = NewsVolumeStrategy(config=parallel_config)
+            self._trader.add_strategy(parallel_strategy)
+            self._trader.start_strategy(parallel_strategy.id)
+
+            self.log.info(f"   ✅ [TRACE:{parallel_correlation_id}] Parallel 10% strategy started: {parallel_strategy_id}")
+
+        except Exception as e:
+            self.log.error(f"   ❌ Failed to spawn parallel strategy: {e}")
             import traceback
             self.log.error(f"Traceback: {traceback.format_exc()}")
 

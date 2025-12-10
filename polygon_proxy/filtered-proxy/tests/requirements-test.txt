@@ -1,0 +1,20 @@
+# Test dependencies for filtered proxy
+
+# Core testing framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-timeout>=2.1.0
+pytest-cov>=4.1.0
+
+# WebSocket client
+websockets>=11.0
+
+# Async utilities
+asyncio>=3.4.3
+
+# Code quality
+pytest-xdist>=3.3.0  # For parallel test execution
+pytest-mock>=3.11.0  # For mocking
+
+# Reporting
+pytest-html>=3.2.0  # HTML test reports

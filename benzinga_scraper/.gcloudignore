@@ -1,0 +1,18 @@
+# Exclude from Cloud Build uploads, but INCLUDE benzinga-addon
+node_modules/
+.env
+*.log
+.DS_Store
+.git/
+README.md
+QUICKSTART.md
+VM-README.md
+deploy-vm.sh
+vm-monitor.sh
+test-local.sh
+configure-env.sh
+setup-secrets.sh
+deploy.log
+vm-deploy.log
+
+# DO NOT exclude benzinga-addon - we need it!

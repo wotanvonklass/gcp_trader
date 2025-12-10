@@ -1,0 +1,1012 @@
+Starting TSLA client...
+Connecting to ws://localhost:8765
+[2025-10-10 09:44:33.563654] Connected to proxy
+[2025-10-10 09:44:33.563807] Auth response: [{"status":"auth_success","message":"authenticated"}]
+[2025-10-10 09:44:33.563988] Subscribe response: [{"status":"success","message":"subscribed to T.TSLA,Q.TSLA"}]
+  Sample message: [{'c': [14, 12, 37, 41], 'ev': 'T', 'i': '6853', 'p': 434.4, 'q': 229317, 's': 1, 'sym': 'TSLA', 't': 1760089476611, 'x': 8, 'z': 3}]
+[2025-10-10 09:44:41.642381] No messages for 5 seconds (total: 1)
+  Sample message: [{'c': [12, 37], 'ev': 'T', 'i': '6854', 'p': 434.4, 'q': 229445, 's': 5, 'sym': 'TSLA', 't': 1760089483435, 'x': 8, 'z': 3}]
+  Sample message: [{'c': [14, 12, 37, 41], 'ev': 'T', 'i': '6655', 'p': 434.38, 'q': 229447, 's': 5, 'sym': 'TSLA', 't': 1760089483951, 'x': 11, 'z': 3}]
+[2025-10-10 09:44:57.360124] Received 10 messages
+[2025-10-10 09:45:21.859347] No messages for 5 seconds (total: 19)
+[2025-10-10 09:45:22.584395] Received 20 messages
+[2025-10-10 09:45:22.811347] Received 30 messages
+[2025-10-10 09:45:30.770334] No messages for 5 seconds (total: 37)
+[2025-10-10 09:45:33.608499] Received 40 messages
+[2025-10-10 09:45:43.113316] No messages for 5 seconds (total: 45)
+[2025-10-10 09:45:49.401133] Received 50 messages
+[2025-10-10 09:45:58.655297] No messages for 5 seconds (total: 51)
+[2025-10-10 09:46:03.680341] No messages for 5 seconds (total: 51)
+[2025-10-10 09:46:12.678753] Received 60 messages
+[2025-10-10 09:46:12.693349] Received 70 messages
+[2025-10-10 09:46:18.660326] No messages for 5 seconds (total: 72)
+[2025-10-10 09:46:30.316869] Received 80 messages
+[2025-10-10 09:46:42.953490] No messages for 5 seconds (total: 86)
+[2025-10-10 09:46:48.385190] Received 90 messages
+[2025-10-10 09:46:54.681786] Received 100 messages
+[2025-10-10 09:47:00.662290] Received 110 messages
+[2025-10-10 09:47:09.500340] No messages for 5 seconds (total: 118)
+[2025-10-10 09:47:13.999687] Received 120 messages
+[2025-10-10 09:47:18.948797] Received 130 messages
+[2025-10-10 09:47:29.049162] Received 140 messages
+[2025-10-10 09:47:34.102420] Received 150 messages
+[2025-10-10 09:47:34.121628] Received 160 messages
+[2025-10-10 09:47:39.459301] Received 170 messages
+[2025-10-10 09:47:44.487681] No messages for 5 seconds (total: 171)
+[2025-10-10 09:47:57.313730] Received 180 messages
+[2025-10-10 09:47:57.319756] Received 190 messages
+[2025-10-10 09:48:09.095887] Received 200 messages
+[2025-10-10 09:48:13.729527] Received 210 messages
+[2025-10-10 09:48:16.744884] Received 220 messages
+[2025-10-10 09:48:19.511212] Received 230 messages
+[2025-10-10 09:48:27.480253] No messages for 5 seconds (total: 231)
+[2025-10-10 09:48:32.927382] Received 240 messages
+[2025-10-10 09:48:33.741179] Received 250 messages
+[2025-10-10 09:48:43.687053] Received 260 messages
+[2025-10-10 09:48:53.187282] Received 270 messages
+[2025-10-10 09:49:00.064516] Received 280 messages
+[2025-10-10 09:49:05.789397] No messages for 5 seconds (total: 283)
+[2025-10-10 09:49:13.687880] Received 290 messages
+[2025-10-10 09:49:18.745426] No messages for 5 seconds (total: 293)
+[2025-10-10 09:49:19.645354] Received 300 messages
+[2025-10-10 09:49:20.100863] Received 310 messages
+[2025-10-10 09:49:20.210666] Received 320 messages
+[2025-10-10 09:49:38.773305] No messages for 5 seconds (total: 328)
+[2025-10-10 09:49:42.870803] Received 330 messages
+[2025-10-10 09:49:42.875682] Received 340 messages
+[2025-10-10 09:49:47.932576] Received 350 messages
+[2025-10-10 09:49:47.932962] Received 360 messages
+[2025-10-10 09:49:51.508279] Received 370 messages
+[2025-10-10 09:49:54.567275] Received 380 messages
+[2025-10-10 09:49:56.680944] Received 390 messages
+[2025-10-10 09:49:56.681509] Received 400 messages
+[2025-10-10 09:49:56.681632] Received 410 messages
+[2025-10-10 09:49:56.683399] Received 420 messages
+[2025-10-10 09:49:56.683688] Received 430 messages
+[2025-10-10 09:49:56.683949] Received 440 messages
+[2025-10-10 09:49:56.730628] Received 450 messages
+[2025-10-10 09:49:59.954820] Received 460 messages
+[2025-10-10 09:49:59.985893] Received 470 messages
+[2025-10-10 09:50:02.338790] Received 480 messages
+[2025-10-10 09:50:12.161324] No messages for 5 seconds (total: 489)
+[2025-10-10 09:50:13.428541] Received 490 messages
+[2025-10-10 09:50:25.161242] Received 500 messages
+[2025-10-10 09:50:32.354095] Received 510 messages
+[2025-10-10 09:50:32.354892] Received 520 messages
+[2025-10-10 09:50:33.040602] Received 530 messages
+[2025-10-10 09:50:35.180898] Received 540 messages
+[2025-10-10 09:50:41.455467] No messages for 5 seconds (total: 542)
+[2025-10-10 09:50:46.480929] No messages for 5 seconds (total: 542)
+[2025-10-10 09:50:49.462523] Received 550 messages
+[2025-10-10 09:51:04.760318] Received 560 messages
+[2025-10-10 09:51:10.213574] Received 570 messages
+[2025-10-10 09:51:18.125509] Received 580 messages
+[2025-10-10 09:51:23.637231] Received 590 messages
+[2025-10-10 09:51:30.018415] Received 600 messages
+[2025-10-10 09:51:44.202363] No messages for 5 seconds (total: 609)
+[2025-10-10 09:51:44.612555] Received 610 messages
+[2025-10-10 09:51:59.339558] Received 620 messages
+[2025-10-10 09:52:08.257271] Received 630 messages
+[2025-10-10 09:52:18.316634] Received 640 messages
+[2025-10-10 09:52:28.286188] Received 650 messages
+[2025-10-10 09:52:39.576250] No messages for 5 seconds (total: 659)
+[2025-10-10 09:52:40.664584] Received 660 messages
+[2025-10-10 09:52:53.823233] Received 670 messages
+[2025-10-10 09:53:02.305466] Received 680 messages
+[2025-10-10 09:53:08.770174] Received 690 messages
+[2025-10-10 09:53:11.470181] Received 700 messages
+[2025-10-10 09:53:18.894958] Received 710 messages
+[2025-10-10 09:53:20.904533] Received 720 messages
+[2025-10-10 09:53:25.929462] No messages for 5 seconds (total: 720)
+[2025-10-10 09:53:39.397318] No messages for 5 seconds (total: 725)
+[2025-10-10 09:53:47.427979] Received 730 messages
+[2025-10-10 09:53:52.432268] No messages for 5 seconds (total: 731)
+[2025-10-10 09:53:56.289306] Received 740 messages
+[2025-10-10 09:53:59.811937] Received 750 messages
+[2025-10-10 09:54:07.150254] No messages for 5 seconds (total: 757)
+[2025-10-10 09:54:12.175471] No messages for 5 seconds (total: 757)
+[2025-10-10 09:54:12.219663] Received 760 messages
+[2025-10-10 09:54:13.867656] Received 770 messages
+[2025-10-10 09:54:16.527748] Received 780 messages
+[2025-10-10 09:54:22.348574] Received 790 messages
+[2025-10-10 09:54:22.351568] Received 800 messages
+[2025-10-10 09:54:27.512452] Received 810 messages
+[2025-10-10 09:54:33.739292] No messages for 5 seconds (total: 817)
+[2025-10-10 09:54:37.238092] Received 820 messages
+[2025-10-10 09:54:48.103629] No messages for 5 seconds (total: 829)
+[2025-10-10 09:54:50.050195] Received 830 messages
+[2025-10-10 09:54:54.984368] Received 840 messages
+[2025-10-10 09:55:05.228122] Received 850 messages
+[2025-10-10 09:55:10.113245] Received 860 messages
+[2025-10-10 09:55:11.837141] Received 870 messages
+[2025-10-10 09:55:11.838905] Received 880 messages
+[2025-10-10 09:55:17.563591] Received 890 messages
+[2025-10-10 09:55:17.579819] Received 900 messages
+[2025-10-10 09:55:22.373363] Received 910 messages
+[2025-10-10 09:55:22.380834] Received 920 messages
+[2025-10-10 09:55:31.248309] Received 930 messages
+[2025-10-10 09:55:34.726373] Received 940 messages
+[2025-10-10 09:55:39.527102] Received 950 messages
+[2025-10-10 09:55:49.474243] Received 960 messages
+[2025-10-10 09:55:55.988000] Received 970 messages
+[2025-10-10 09:55:55.999535] Received 980 messages
+[2025-10-10 09:55:56.004514] Received 990 messages
+[2025-10-10 09:55:56.024268] Received 1000 messages
+[2025-10-10 09:56:07.569424] No messages for 5 seconds (total: 1002)
+[2025-10-10 09:56:12.594254] No messages for 5 seconds (total: 1002)
+[2025-10-10 09:56:15.641049] Received 1010 messages
+[2025-10-10 09:56:20.351008] Received 1020 messages
+[2025-10-10 09:56:20.386803] Received 1030 messages
+[2025-10-10 09:56:20.388627] Received 1040 messages
+[2025-10-10 09:56:27.167541] No messages for 5 seconds (total: 1043)
+[2025-10-10 09:56:34.699275] Received 1050 messages
+[2025-10-10 09:56:35.214978] Received 1060 messages
+[2025-10-10 09:56:39.611763] Received 1070 messages
+[2025-10-10 09:56:39.626065] Received 1080 messages
+[2025-10-10 09:56:44.650991] No messages for 5 seconds (total: 1080)
+[2025-10-10 09:56:51.497324] Received 1090 messages
+[2025-10-10 09:56:51.678261] Received 1100 messages
+[2025-10-10 09:57:04.978251] Received 1110 messages
+[2025-10-10 09:57:07.109049] Received 1120 messages
+[2025-10-10 09:57:07.119684] Received 1130 messages
+[2025-10-10 09:57:07.120101] Received 1140 messages
+[2025-10-10 09:57:07.120293] Received 1150 messages
+[2025-10-10 09:57:07.120629] Received 1160 messages
+[2025-10-10 09:57:07.121312] Received 1170 messages
+[2025-10-10 09:57:17.445902] Received 1180 messages
+[2025-10-10 09:57:20.802592] Received 1190 messages
+[2025-10-10 09:57:29.810621] Received 1200 messages
+[2025-10-10 09:57:40.081714] Received 1210 messages
+[2025-10-10 09:57:49.049374] No messages for 5 seconds (total: 1215)
+[2025-10-10 09:57:52.422643] Received 1220 messages
+[2025-10-10 09:57:59.005314] No messages for 5 seconds (total: 1222)
+[2025-10-10 09:58:00.098041] Received 1230 messages
+[2025-10-10 09:58:00.108661] Received 1240 messages
+[2025-10-10 09:58:01.173012] Received 1250 messages
+[2025-10-10 09:58:10.144480] Received 1260 messages
+[2025-10-10 09:58:19.011462] No messages for 5 seconds (total: 1265)
+[2025-10-10 09:58:24.551538] Received 1270 messages
+[2025-10-10 09:58:31.584634] Received 1280 messages
+[2025-10-10 09:58:41.731780] Received 1290 messages
+[2025-10-10 09:58:41.741766] Received 1300 messages
+[2025-10-10 09:58:41.745980] Received 1310 messages
+[2025-10-10 09:58:41.746979] Received 1320 messages
+[2025-10-10 09:58:41.749620] Received 1330 messages
+[2025-10-10 09:58:41.751715] Received 1340 messages
+[2025-10-10 09:58:41.753142] Received 1350 messages
+[2025-10-10 09:58:41.754319] Received 1360 messages
+[2025-10-10 09:58:41.755395] Received 1370 messages
+[2025-10-10 09:58:41.762787] Received 1380 messages
+[2025-10-10 09:58:41.765774] Received 1390 messages
+[2025-10-10 09:58:41.788747] Received 1400 messages
+[2025-10-10 09:58:41.904760] Received 1410 messages
+[2025-10-10 09:58:41.989965] Received 1420 messages
+[2025-10-10 09:58:41.995779] Received 1430 messages
+[2025-10-10 09:58:41.999935] Received 1440 messages
+[2025-10-10 09:58:42.001562] Received 1450 messages
+[2025-10-10 09:58:42.003185] Received 1460 messages
+[2025-10-10 09:58:42.004815] Received 1470 messages
+[2025-10-10 09:58:42.005243] Received 1480 messages
+[2025-10-10 09:58:42.007277] Received 1490 messages
+[2025-10-10 09:58:42.007672] Received 1500 messages
+[2025-10-10 09:58:42.007951] Received 1510 messages
+[2025-10-10 09:58:42.008312] Received 1520 messages
+[2025-10-10 09:58:42.009791] Received 1530 messages
+[2025-10-10 09:58:42.010112] Received 1540 messages
+[2025-10-10 09:58:42.010948] Received 1550 messages
+[2025-10-10 09:58:42.011067] Received 1560 messages
+[2025-10-10 09:58:42.013432] Received 1570 messages
+[2025-10-10 09:58:42.019823] Received 1580 messages
+[2025-10-10 09:58:42.020943] Received 1590 messages
+[2025-10-10 09:58:42.313410] Received 1600 messages
+[2025-10-10 09:58:47.865897] Received 1610 messages
+[2025-10-10 09:58:49.287153] Received 1620 messages
+[2025-10-10 09:58:59.287264] No messages for 5 seconds (total: 1628)
+[2025-10-10 09:58:59.474046] Received 1630 messages
+[2025-10-10 09:59:04.064845] Received 1640 messages
+[2025-10-10 09:59:04.079950] Received 1650 messages
+[2025-10-10 09:59:06.953527] Received 1660 messages
+[2025-10-10 09:59:11.804305] Received 1670 messages
+[2025-10-10 09:59:13.998482] Received 1680 messages
+[2025-10-10 09:59:18.807430] Received 1690 messages
+[2025-10-10 09:59:19.505854] Received 1700 messages
+[2025-10-10 09:59:30.684263] No messages for 5 seconds (total: 1707)
+[2025-10-10 09:59:37.280023] Received 1710 messages
+[2025-10-10 09:59:50.271208] Received 1720 messages
+[2025-10-10 10:00:05.537068] Received 1730 messages
+[2025-10-10 10:00:05.542658] Received 1740 messages
+[2025-10-10 10:00:05.599191] Received 1750 messages
+[2025-10-10 10:00:10.839479] Received 1760 messages
+[2025-10-10 10:00:17.645654] Received 1770 messages
+[2025-10-10 10:00:25.546622] Received 1780 messages
+[2025-10-10 10:00:30.571842] No messages for 5 seconds (total: 1780)
+[2025-10-10 10:00:40.626223] Received 1790 messages
+[2025-10-10 10:00:47.442305] No messages for 5 seconds (total: 1793)
+[2025-10-10 10:00:57.100330] Received 1800 messages
+[2025-10-10 10:00:57.829337] Received 1810 messages
+[2025-10-10 10:00:58.412699] Received 1820 messages
+[2025-10-10 10:00:58.429192] Received 1830 messages
+[2025-10-10 10:01:03.497588] No messages for 5 seconds (total: 1832)
+[2025-10-10 10:01:12.804586] Received 1840 messages
+[2025-10-10 10:01:14.908952] Received 1850 messages
+[2025-10-10 10:01:22.596984] Received 1860 messages
+[2025-10-10 10:01:26.518424] Received 1870 messages
+[2025-10-10 10:01:34.826878] Received 1880 messages
+[2025-10-10 10:01:37.095548] Received 1890 messages
+[2025-10-10 10:01:41.027624] Received 1900 messages
+[2025-10-10 10:01:51.738791] No messages for 5 seconds (total: 1903)
+[2025-10-10 10:01:52.301149] Received 1910 messages
+[2025-10-10 10:02:03.714338] Received 1920 messages
+[2025-10-10 10:02:13.798392] No messages for 5 seconds (total: 1923)
+[2025-10-10 10:02:24.257465] No messages for 5 seconds (total: 1926)
+[2025-10-10 10:02:28.104341] Received 1930 messages
+[2025-10-10 10:02:29.579152] Received 1940 messages
+[2025-10-10 10:02:45.274021] Received 1950 messages
+[2025-10-10 10:02:48.884584] Received 1960 messages
+[2025-10-10 10:02:49.544450] Received 1970 messages
+[2025-10-10 10:03:01.853504] No messages for 5 seconds (total: 1972)
+[2025-10-10 10:03:07.854603] Received 1980 messages
+[2025-10-10 10:03:12.351163] Received 1990 messages
+[2025-10-10 10:03:12.550389] Received 2000 messages
+[2025-10-10 10:03:19.974367] No messages for 5 seconds (total: 2005)
+[2025-10-10 10:03:21.910622] Received 2010 messages
+[2025-10-10 10:03:30.863292] No messages for 5 seconds (total: 2017)
+[2025-10-10 10:03:35.166180] Received 2020 messages
+[2025-10-10 10:03:40.195311] No messages for 5 seconds (total: 2023)
+[2025-10-10 10:03:49.918517] Received 2030 messages
+[2025-10-10 10:03:54.140244] Received 2040 messages
+[2025-10-10 10:04:00.635173] Received 2050 messages
+[2025-10-10 10:04:19.995392] No messages for 5 seconds (total: 2058)
+[2025-10-10 10:04:22.085191] Received 2060 messages
+[2025-10-10 10:04:30.396705] Received 2070 messages
+[2025-10-10 10:04:44.606800] Received 2080 messages
+[2025-10-10 10:04:49.311149] Received 2090 messages
+[2025-10-10 10:04:57.165351] Received 2100 messages
+[2025-10-10 10:05:02.190309] No messages for 5 seconds (total: 2100)
+[2025-10-10 10:05:06.165493] Received 2110 messages
+[2025-10-10 10:05:11.211450] No messages for 5 seconds (total: 2118)
+[2025-10-10 10:05:13.629048] Received 2120 messages
+[2025-10-10 10:05:22.415290] No messages for 5 seconds (total: 2124)
+[2025-10-10 10:05:22.856782] Received 2130 messages
+[2025-10-10 10:05:31.741482] No messages for 5 seconds (total: 2136)
+[2025-10-10 10:05:39.215325] No messages for 5 seconds (total: 2138)
+[2025-10-10 10:05:41.474824] Received 2140 messages
+[2025-10-10 10:05:47.258289] No messages for 5 seconds (total: 2145)
+[2025-10-10 10:05:49.319001] Received 2150 messages
+[2025-10-10 10:06:09.901343] No messages for 5 seconds (total: 2158)
+[2025-10-10 10:06:12.077050] Received 2160 messages
+[2025-10-10 10:06:22.930267] Received 2170 messages
+[2025-10-10 10:06:27.955416] No messages for 5 seconds (total: 2170)
+[2025-10-10 10:06:32.865033] Received 2180 messages
+[2025-10-10 10:06:32.874129] Received 2190 messages
+[2025-10-10 10:06:32.874492] Received 2200 messages
+[2025-10-10 10:06:32.915206] Received 2210 messages
+[2025-10-10 10:06:33.012412] Received 2220 messages
+[2025-10-10 10:06:33.018738] Received 2230 messages
+[2025-10-10 10:06:34.458147] Received 2240 messages
+[2025-10-10 10:06:39.152772] Received 2250 messages
+[2025-10-10 10:06:46.397070] Received 2260 messages
+[2025-10-10 10:07:04.483821] Received 2270 messages
+[2025-10-10 10:07:04.489833] Received 2280 messages
+[2025-10-10 10:07:04.490150] Received 2290 messages
+[2025-10-10 10:07:04.491845] Received 2300 messages
+[2025-10-10 10:07:04.492305] Received 2310 messages
+[2025-10-10 10:07:04.534703] Received 2320 messages
+[2025-10-10 10:07:04.549302] Received 2330 messages
+[2025-10-10 10:07:04.553027] Received 2340 messages
+[2025-10-10 10:07:04.553316] Received 2350 messages
+[2025-10-10 10:07:04.554816] Received 2360 messages
+[2025-10-10 10:07:09.579333] No messages for 5 seconds (total: 2366)
+[2025-10-10 10:07:13.831185] Received 2370 messages
+[2025-10-10 10:07:22.148311] No messages for 5 seconds (total: 2377)
+[2025-10-10 10:07:30.333842] Received 2380 messages
+[2025-10-10 10:07:39.413953] Received 2390 messages
+[2025-10-10 10:07:55.463332] Received 2400 messages
+[2025-10-10 10:08:04.932421] Received 2410 messages
+[2025-10-10 10:08:26.027337] No messages for 5 seconds (total: 2419)
+[2025-10-10 10:08:29.375704] Received 2420 messages
+[2025-10-10 10:08:36.642863] Received 2430 messages
+[2025-10-10 10:08:47.241534] Received 2440 messages
+[2025-10-10 10:09:03.232308] No messages for 5 seconds (total: 2445)
+[2025-10-10 10:09:03.316364] Received 2450 messages
+[2025-10-10 10:09:04.096744] Received 2460 messages
+[2025-10-10 10:09:09.122307] No messages for 5 seconds (total: 2465)
+[2025-10-10 10:09:13.168531] Received 2470 messages
+[2025-10-10 10:09:20.323913] Received 2480 messages
+[2025-10-10 10:09:20.330236] Received 2490 messages
+[2025-10-10 10:09:20.334319] Received 2500 messages
+[2025-10-10 10:09:20.334762] Received 2510 messages
+[2025-10-10 10:09:20.335331] Received 2520 messages
+[2025-10-10 10:09:22.899566] Received 2530 messages
+[2025-10-10 10:09:34.311777] Received 2540 messages
+[2025-10-10 10:09:41.615851] Received 2550 messages
+[2025-10-10 10:09:47.297302] No messages for 5 seconds (total: 2557)
+[2025-10-10 10:09:51.278376] Received 2560 messages
+[2025-10-10 10:09:57.376582] Received 2570 messages
+[2025-10-10 10:10:08.072304] No messages for 5 seconds (total: 2573)
+[2025-10-10 10:10:20.851273] No messages for 5 seconds (total: 2578)
+[2025-10-10 10:10:22.085565] Received 2580 messages
+[2025-10-10 10:10:22.089255] Received 2590 messages
+[2025-10-10 10:10:27.114298] No messages for 5 seconds (total: 2599)
+[2025-10-10 10:10:29.792211] Received 2600 messages
+[2025-10-10 10:10:39.368313] No messages for 5 seconds (total: 2602)
+[2025-10-10 10:10:43.102892] Received 2610 messages
+[2025-10-10 10:10:48.136315] No messages for 5 seconds (total: 2617)
+[2025-10-10 10:10:51.701184] Received 2620 messages
+[2025-10-10 10:10:52.403004] Received 2630 messages
+[2025-10-10 10:10:56.449250] Received 2640 messages
+[2025-10-10 10:10:56.460350] Received 2650 messages
+[2025-10-10 10:10:56.462166] Received 2660 messages
+[2025-10-10 10:11:01.488276] No messages for 5 seconds (total: 2662)
+[2025-10-10 10:11:09.843389] No messages for 5 seconds (total: 2664)
+[2025-10-10 10:11:17.238870] Received 2670 messages
+[2025-10-10 10:11:17.244487] Received 2680 messages
+[2025-10-10 10:11:17.251196] Received 2690 messages
+[2025-10-10 10:11:22.324299] No messages for 5 seconds (total: 2692)
+[2025-10-10 10:11:34.165829] Received 2700 messages
+[2025-10-10 10:11:40.160182] Received 2710 messages
+[2025-10-10 10:11:48.836312] No messages for 5 seconds (total: 2711)
+[2025-10-10 10:11:56.159734] Received 2720 messages
+[2025-10-10 10:12:01.184343] No messages for 5 seconds (total: 2720)
+[2025-10-10 10:12:06.270010] No messages for 5 seconds (total: 2725)
+[2025-10-10 10:12:08.283394] Received 2730 messages
+[2025-10-10 10:12:11.225444] Received 2740 messages
+[2025-10-10 10:12:16.408724] Received 2750 messages
+[2025-10-10 10:12:23.613663] Received 2760 messages
+[2025-10-10 10:12:28.656457] Received 2770 messages
+[2025-10-10 10:12:39.630182] Received 2780 messages
+[2025-10-10 10:12:39.635836] Received 2790 messages
+[2025-10-10 10:12:39.637969] Received 2800 messages
+[2025-10-10 10:12:39.647991] Received 2810 messages
+[2025-10-10 10:12:40.785921] Received 2820 messages
+[2025-10-10 10:12:54.402550] Received 2830 messages
+[2025-10-10 10:13:04.464231] Received 2840 messages
+[2025-10-10 10:13:13.207827] Received 2850 messages
+[2025-10-10 10:13:23.852257] No messages for 5 seconds (total: 2856)
+[2025-10-10 10:13:28.863227] No messages for 5 seconds (total: 2856)
+[2025-10-10 10:13:29.670804] Received 2860 messages
+[2025-10-10 10:13:36.956398] Received 2870 messages
+[2025-10-10 10:13:38.060107] Received 2880 messages
+[2025-10-10 10:13:45.052398] No messages for 5 seconds (total: 2888)
+[2025-10-10 10:13:50.077368] No messages for 5 seconds (total: 2888)
+[2025-10-10 10:13:58.645821] Received 2890 messages
+[2025-10-10 10:14:03.883964] Received 2900 messages
+[2025-10-10 10:14:09.256317] No messages for 5 seconds (total: 2909)
+[2025-10-10 10:14:09.671872] Received 2910 messages
+[2025-10-10 10:14:27.801745] Received 2920 messages
+[2025-10-10 10:14:32.526003] Received 2930 messages
+[2025-10-10 10:14:39.484896] No messages for 5 seconds (total: 2937)
+[2025-10-10 10:14:45.859314] No messages for 5 seconds (total: 2939)
+[2025-10-10 10:14:50.883507] No messages for 5 seconds (total: 2939)
+[2025-10-10 10:14:54.477926] Received 2940 messages
+[2025-10-10 10:14:54.888716] Received 2950 messages
+[2025-10-10 10:14:54.901867] Received 2960 messages
+[2025-10-10 10:15:03.095217] No messages for 5 seconds (total: 2963)
+[2025-10-10 10:15:11.030482] Received 2970 messages
+[2025-10-10 10:15:19.491272] Received 2980 messages
+[2025-10-10 10:15:25.902321] No messages for 5 seconds (total: 2989)
+[2025-10-10 10:15:30.927285] No messages for 5 seconds (total: 2989)
+[2025-10-10 10:15:32.779147] Received 2990 messages
+[2025-10-10 10:15:37.475442] Received 3000 messages
+[2025-10-10 10:15:45.939641] Received 3010 messages
+[2025-10-10 10:15:54.293380] No messages for 5 seconds (total: 3013)
+[2025-10-10 10:15:59.246819] Received 3020 messages
+[2025-10-10 10:16:18.182891] Received 3030 messages
+[2025-10-10 10:16:27.081398] No messages for 5 seconds (total: 3034)
+[2025-10-10 10:16:34.855895] Received 3040 messages
+[2025-10-10 10:16:39.880453] No messages for 5 seconds (total: 3041)
+[2025-10-10 10:16:45.403802] No messages for 5 seconds (total: 3043)
+[2025-10-10 10:16:47.905555] Received 3050 messages
+[2025-10-10 10:16:47.912105] Received 3060 messages
+[2025-10-10 10:16:52.366637] Received 3070 messages
+[2025-10-10 10:16:59.557442] No messages for 5 seconds (total: 3073)
+[2025-10-10 10:17:09.440182] No messages for 5 seconds (total: 3077)
+[2025-10-10 10:17:14.556009] Received 3080 messages
+[2025-10-10 10:17:27.196656] Received 3090 messages
+[2025-10-10 10:17:32.221471] No messages for 5 seconds (total: 3090)
+[2025-10-10 10:17:32.658471] Received 3100 messages
+[2025-10-10 10:17:34.556951] Received 3110 messages
+[2025-10-10 10:17:38.428178] Received 3120 messages
+[2025-10-10 10:17:38.436319] Received 3130 messages
+[2025-10-10 10:17:43.469467] No messages for 5 seconds (total: 3135)
+[2025-10-10 10:17:47.549134] Received 3140 messages
+[2025-10-10 10:17:58.773069] Received 3150 messages
+[2025-10-10 10:18:13.507446] No messages for 5 seconds (total: 3154)
+[2025-10-10 10:18:20.531013] Received 3160 messages
+[2025-10-10 10:18:30.354805] Received 3170 messages
+[2025-10-10 10:18:30.899234] Received 3180 messages
+[2025-10-10 10:18:30.913970] Received 3190 messages
+[2025-10-10 10:18:39.556181] Received 3200 messages
+[2025-10-10 10:18:47.691408] No messages for 5 seconds (total: 3208)
+[2025-10-10 10:18:50.892581] Received 3210 messages
+[2025-10-10 10:18:59.628360] No messages for 5 seconds (total: 3214)
+[2025-10-10 10:19:03.231470] Received 3220 messages
+[2025-10-10 10:19:19.923304] No messages for 5 seconds (total: 3229)
+[2025-10-10 10:19:24.339484] Received 3230 messages
+[2025-10-10 10:19:34.617627] Received 3240 messages
+[2025-10-10 10:19:43.823324] No messages for 5 seconds (total: 3247)
+[2025-10-10 10:19:52.231273] No messages for 5 seconds (total: 3248)
+[2025-10-10 10:19:57.902007] Received 3250 messages
+[2025-10-10 10:20:04.023263] No messages for 5 seconds (total: 3256)
+[2025-10-10 10:20:07.982735] Received 3260 messages
+[2025-10-10 10:20:22.507492] Received 3270 messages
+[2025-10-10 10:20:28.070942] Received 3280 messages
+[2025-10-10 10:20:43.192395] No messages for 5 seconds (total: 3289)
+[2025-10-10 10:20:44.735148] Received 3290 messages
+[2025-10-10 10:20:51.986271] No messages for 5 seconds (total: 3295)
+[2025-10-10 10:20:55.865365] Received 3300 messages
+[2025-10-10 10:21:00.872268] No messages for 5 seconds (total: 3300)
+[2025-10-10 10:21:02.800137] Received 3310 messages
+[2025-10-10 10:21:02.901797] Received 3320 messages
+[2025-10-10 10:21:20.023858] Received 3330 messages
+[2025-10-10 10:21:20.037946] Received 3340 messages
+[2025-10-10 10:21:34.959409] Received 3350 messages
+[2025-10-10 10:21:40.933386] No messages for 5 seconds (total: 3359)
+[2025-10-10 10:21:42.312539] Received 3360 messages
+[2025-10-10 10:21:48.610625] Received 3370 messages
+[2025-10-10 10:22:06.111358] No messages for 5 seconds (total: 3378)
+[2025-10-10 10:22:11.136682] No messages for 5 seconds (total: 3378)
+[2025-10-10 10:22:12.667329] Received 3380 messages
+[2025-10-10 10:22:15.841559] Received 3390 messages
+[2025-10-10 10:22:28.475419] No messages for 5 seconds (total: 3396)
+[2025-10-10 10:22:28.621243] Received 3400 messages
+[2025-10-10 10:22:33.928337] No messages for 5 seconds (total: 3402)
+[2025-10-10 10:22:36.330267] Received 3410 messages
+[2025-10-10 10:22:44.680328] No messages for 5 seconds (total: 3411)
+[2025-10-10 10:22:49.705391] No messages for 5 seconds (total: 3411)
+[2025-10-10 10:23:01.021873] Received 3420 messages
+[2025-10-10 10:23:02.049329] Received 3430 messages
+[2025-10-10 10:23:02.063181] Received 3440 messages
+[2025-10-10 10:23:02.074317] Received 3450 messages
+[2025-10-10 10:23:07.099314] No messages for 5 seconds (total: 3454)
+[2025-10-10 10:23:14.705769] Received 3460 messages
+[2025-10-10 10:23:26.433328] No messages for 5 seconds (total: 3468)
+[2025-10-10 10:23:31.736320] No messages for 5 seconds (total: 3469)
+[2025-10-10 10:23:34.720546] Received 3470 messages
+[2025-10-10 10:23:39.745281] No messages for 5 seconds (total: 3470)
+[2025-10-10 10:23:53.384647] Received 3480 messages
+[2025-10-10 10:23:53.512715] Received 3490 messages
+[2025-10-10 10:24:03.703196] Received 3500 messages
+[2025-10-10 10:24:03.712230] Received 3510 messages
+[2025-10-10 10:24:14.086290] No messages for 5 seconds (total: 3518)
+[2025-10-10 10:24:17.207217] Received 3520 messages
+[2025-10-10 10:24:24.063927] Received 3530 messages
+[2025-10-10 10:24:39.797251] No messages for 5 seconds (total: 3537)
+[2025-10-10 10:24:41.220151] Received 3540 messages
+[2025-10-10 10:24:52.257470] No messages for 5 seconds (total: 3547)
+[2025-10-10 10:24:58.298178] Received 3550 messages
+[2025-10-10 10:25:08.393079] No messages for 5 seconds (total: 3555)
+[2025-10-10 10:25:14.859394] Received 3560 messages
+[2025-10-10 10:25:21.083088] Received 3570 messages
+[2025-10-10 10:25:34.777755] Received 3580 messages
+[2025-10-10 10:25:36.142992] Received 3590 messages
+[2025-10-10 10:25:36.144844] Received 3600 messages
+[2025-10-10 10:25:42.019286] No messages for 5 seconds (total: 3603)
+[2025-10-10 10:25:48.023745] Received 3610 messages
+[2025-10-10 10:25:54.425296] No messages for 5 seconds (total: 3613)
+[2025-10-10 10:25:59.507068] Received 3620 messages
+[2025-10-10 10:26:17.130675] Received 3630 messages
+[2025-10-10 10:26:30.013370] No messages for 5 seconds (total: 3635)
+[2025-10-10 10:26:33.173518] Received 3640 messages
+[2025-10-10 10:26:41.279510] No messages for 5 seconds (total: 3645)
+[2025-10-10 10:26:47.928288] No messages for 5 seconds (total: 3646)
+[2025-10-10 10:26:52.953398] No messages for 5 seconds (total: 3646)
+[2025-10-10 10:26:55.320938] Received 3650 messages
+[2025-10-10 10:27:07.082748] Received 3660 messages
+[2025-10-10 10:27:20.110309] No messages for 5 seconds (total: 3668)
+[2025-10-10 10:27:25.135291] No messages for 5 seconds (total: 3668)
+[2025-10-10 10:27:27.687122] Received 3670 messages
+[2025-10-10 10:27:46.329341] No messages for 5 seconds (total: 3676)
+[2025-10-10 10:27:50.262150] Received 3680 messages
+[2025-10-10 10:28:00.089799] Received 3690 messages
+[2025-10-10 10:28:01.337617] Received 3700 messages
+[2025-10-10 10:28:09.275573] Received 3710 messages
+[2025-10-10 10:28:18.018578] Received 3720 messages
+[2025-10-10 10:28:25.762473] No messages for 5 seconds (total: 3722)
+[2025-10-10 10:28:33.424272] Received 3730 messages
+[2025-10-10 10:28:46.230401] No messages for 5 seconds (total: 3738)
+[2025-10-10 10:28:51.255480] No messages for 5 seconds (total: 3738)
+[2025-10-10 10:28:53.742236] Received 3740 messages
+[2025-10-10 10:29:00.340343] No messages for 5 seconds (total: 3744)
+[2025-10-10 10:29:10.130314] No messages for 5 seconds (total: 3748)
+[2025-10-10 10:29:14.854665] Received 3750 messages
+[2025-10-10 10:29:20.150470] No messages for 5 seconds (total: 3751)
+[2025-10-10 10:29:23.145001] Received 3760 messages
+[2025-10-10 10:29:30.508334] No messages for 5 seconds (total: 3765)
+[2025-10-10 10:29:40.990622] No messages for 5 seconds (total: 3768)
+[2025-10-10 10:29:48.872762] Received 3770 messages
+[2025-10-10 10:29:53.900561] No messages for 5 seconds (total: 3775)
+[2025-10-10 10:29:56.558047] Received 3780 messages
+[2025-10-10 10:30:01.581292] No messages for 5 seconds (total: 3780)
+[2025-10-10 10:30:06.606257] No messages for 5 seconds (total: 3780)
+[2025-10-10 10:30:12.520468] Received 3790 messages
+[2025-10-10 10:30:19.908659] No messages for 5 seconds (total: 3791)
+[2025-10-10 10:30:33.526601] No messages for 5 seconds (total: 3797)
+[2025-10-10 10:30:39.914335] No messages for 5 seconds (total: 3798)
+[2025-10-10 10:30:41.961926] Received 3800 messages
+[2025-10-10 10:30:43.272121] Received 3810 messages
+[2025-10-10 10:30:43.286556] Received 3820 messages
+[2025-10-10 10:31:01.286901] No messages for 5 seconds (total: 3829)
+[2025-10-10 10:31:02.453294] Received 3830 messages
+[2025-10-10 10:31:10.884367] No messages for 5 seconds (total: 3833)
+[2025-10-10 10:31:20.764392] Received 3840 messages
+[2025-10-10 10:31:22.203266] Received 3850 messages
+[2025-10-10 10:31:25.958961] Received 3860 messages
+[2025-10-10 10:31:27.494174] Received 3870 messages
+[2025-10-10 10:31:32.519285] No messages for 5 seconds (total: 3870)
+[2025-10-10 10:31:51.745284] No messages for 5 seconds (total: 3875)
+[2025-10-10 10:31:59.711217] Received 3880 messages
+[2025-10-10 10:32:04.737283] No messages for 5 seconds (total: 3883)
+[2025-10-10 10:32:07.330328] Received 3890 messages
+[2025-10-10 10:32:07.332154] Received 3900 messages
+[2025-10-10 10:32:07.332349] Received 3910 messages
+[2025-10-10 10:32:12.206908] Received 3920 messages
+[2025-10-10 10:32:22.763348] No messages for 5 seconds (total: 3923)
+[2025-10-10 10:32:30.954675] No messages for 5 seconds (total: 3924)
+[2025-10-10 10:32:39.519029] Received 3930 messages
+[2025-10-10 10:32:57.588338] Received 3940 messages
+[2025-10-10 10:33:08.090524] No messages for 5 seconds (total: 3942)
+[2025-10-10 10:33:24.958465] Received 3950 messages
+[2025-10-10 10:33:31.531345] No messages for 5 seconds (total: 3952)
+[2025-10-10 10:33:40.343830] No messages for 5 seconds (total: 3954)
+[2025-10-10 10:33:53.808327] No messages for 5 seconds (total: 3958)
+[2025-10-10 10:33:55.311284] Received 3960 messages
+[2025-10-10 10:34:06.270063] No messages for 5 seconds (total: 3968)
+[2025-10-10 10:34:09.255873] Received 3970 messages
+[2025-10-10 10:34:20.033660] No messages for 5 seconds (total: 3975)
+[2025-10-10 10:34:26.958825] Received 3980 messages
+[2025-10-10 10:34:40.065480] No messages for 5 seconds (total: 3989)
+[2025-10-10 10:34:43.336148] Received 3990 messages
+[2025-10-10 10:34:54.438851] Received 4000 messages
+[2025-10-10 10:35:01.978486] No messages for 5 seconds (total: 4005)
+[2025-10-10 10:35:06.983274] No messages for 5 seconds (total: 4005)
+[2025-10-10 10:35:15.048597] Received 4010 messages
+[2025-10-10 10:35:19.215044] Received 4020 messages
+[2025-10-10 10:35:24.239572] No messages for 5 seconds (total: 4020)
+[2025-10-10 10:35:32.472589] No messages for 5 seconds (total: 4023)
+[2025-10-10 10:35:40.083465] No messages for 5 seconds (total: 4026)
+[2025-10-10 10:35:46.946460] No messages for 5 seconds (total: 4027)
+[2025-10-10 10:35:51.971896] No messages for 5 seconds (total: 4027)
+[2025-10-10 10:35:56.484717] Received 4030 messages
+[2025-10-10 10:35:56.496188] Received 4040 messages
+[2025-10-10 10:35:56.815887] Received 4050 messages
+[2025-10-10 10:35:56.817168] Received 4060 messages
+[2025-10-10 10:35:56.822631] Received 4070 messages
+[2025-10-10 10:36:01.850371] No messages for 5 seconds (total: 4075)
+[2025-10-10 10:36:08.344489] No messages for 5 seconds (total: 4077)
+[2025-10-10 10:36:15.079358] Received 4080 messages
+[2025-10-10 10:36:21.260759] No messages for 5 seconds (total: 4082)
+[2025-10-10 10:36:26.285282] No messages for 5 seconds (total: 4082)
+[2025-10-10 10:36:37.220734] Received 4090 messages
+[2025-10-10 10:36:39.650285] Received 4100 messages
+[2025-10-10 10:36:45.977449] Received 4110 messages
+[2025-10-10 10:36:50.792538] Received 4120 messages
+[2025-10-10 10:36:59.482452] Received 4130 messages
+[2025-10-10 10:37:00.106873] Received 4140 messages
+[2025-10-10 10:37:02.360927] Received 4150 messages
+[2025-10-10 10:37:12.092085] No messages for 5 seconds (total: 4153)
+[2025-10-10 10:37:18.176863] Received 4160 messages
+[2025-10-10 10:37:28.917323] No messages for 5 seconds (total: 4165)
+[2025-10-10 10:37:32.127825] Received 4170 messages
+[2025-10-10 10:37:32.973995] Received 4180 messages
+[2025-10-10 10:37:45.971357] Received 4190 messages
+[2025-10-10 10:37:50.996739] No messages for 5 seconds (total: 4190)
+[2025-10-10 10:38:00.152478] No messages for 5 seconds (total: 4194)
+[2025-10-10 10:38:05.177486] No messages for 5 seconds (total: 4194)
+[2025-10-10 10:38:21.137006] Received 4200 messages
+[2025-10-10 10:38:23.991489] Received 4210 messages
+[2025-10-10 10:38:34.435628] Received 4220 messages
+[2025-10-10 10:38:35.146571] Received 4230 messages
+[2025-10-10 10:38:47.460277] No messages for 5 seconds (total: 4233)
+[2025-10-10 10:38:50.988129] Received 4240 messages
+[2025-10-10 10:39:00.179380] No messages for 5 seconds (total: 4242)
+[2025-10-10 10:39:07.500196] Received 4250 messages
+[2025-10-10 10:39:12.503418] No messages for 5 seconds (total: 4250)
+[2025-10-10 10:39:27.914411] No messages for 5 seconds (total: 4257)
+[2025-10-10 10:39:33.888137] Received 4260 messages
+[2025-10-10 10:39:40.585920] Received 4270 messages
+[2025-10-10 10:39:48.541766] No messages for 5 seconds (total: 4276)
+[2025-10-10 10:39:53.943860] Received 4280 messages
+[2025-10-10 10:40:02.008266] No messages for 5 seconds (total: 4282)
+[2025-10-10 10:40:02.942403] Received 4290 messages
+[2025-10-10 10:40:10.493317] No messages for 5 seconds (total: 4298)
+[2025-10-10 10:40:15.173526] Received 4300 messages
+[2025-10-10 10:40:22.742653] Received 4310 messages
+[2025-10-10 10:40:26.587806] Received 4320 messages
+[2025-10-10 10:40:31.618375] No messages for 5 seconds (total: 4324)
+[2025-10-10 10:40:32.986431] Received 4330 messages
+[2025-10-10 10:40:42.168046] Received 4340 messages
+[2025-10-10 10:40:52.577286] No messages for 5 seconds (total: 4344)
+[2025-10-10 10:40:55.179243] Received 4350 messages
+[2025-10-10 10:41:02.911451] No messages for 5 seconds (total: 4352)
+[2025-10-10 10:41:07.936563] No messages for 5 seconds (total: 4352)
+[2025-10-10 10:41:32.423505] No messages for 5 seconds (total: 4359)
+[2025-10-10 10:41:32.465795] Received 4360 messages
+[2025-10-10 10:41:43.578001] Received 4370 messages
+[2025-10-10 10:41:44.336879] Received 4380 messages
+[2025-10-10 10:41:47.740928] Received 4390 messages
+[2025-10-10 10:41:58.363693] Received 4400 messages
+[2025-10-10 10:42:03.393560] No messages for 5 seconds (total: 4402)
+[2025-10-10 10:42:08.418436] No messages for 5 seconds (total: 4402)
+[2025-10-10 10:42:20.250295] No messages for 5 seconds (total: 4404)
+[2025-10-10 10:42:25.275257] No messages for 5 seconds (total: 4404)
+[2025-10-10 10:42:30.869298] No messages for 5 seconds (total: 4409)
+[2025-10-10 10:42:34.940229] Received 4410 messages
+[2025-10-10 10:42:38.553723] Received 4420 messages
+[2025-10-10 10:42:48.615272] No messages for 5 seconds (total: 4427)
+[2025-10-10 10:42:49.820487] Received 4430 messages
+[2025-10-10 10:43:10.583482] No messages for 5 seconds (total: 4438)
+[2025-10-10 10:43:13.830590] Received 4440 messages
+[2025-10-10 10:43:16.460988] Received 4450 messages
+[2025-10-10 10:43:19.347411] Received 4460 messages
+[2025-10-10 10:43:19.362825] Received 4470 messages
+[2025-10-10 10:43:19.365840] Received 4480 messages
+[2025-10-10 10:43:20.055466] Received 4490 messages
+[2025-10-10 10:43:20.055585] Received 4500 messages
+[2025-10-10 10:43:23.559760] Received 4510 messages
+[2025-10-10 10:43:26.059326] Received 4520 messages
+[2025-10-10 10:43:26.065957] Received 4530 messages
+[2025-10-10 10:43:33.762176] Received 4540 messages
+[2025-10-10 10:43:44.625325] Received 4550 messages
+[2025-10-10 10:43:49.658476] No messages for 5 seconds (total: 4557)
+[2025-10-10 10:43:51.164734] Received 4560 messages
+[2025-10-10 10:44:03.640299] No messages for 5 seconds (total: 4567)
+[2025-10-10 10:44:08.665477] No messages for 5 seconds (total: 4567)
+[2025-10-10 10:44:13.791909] No messages for 5 seconds (total: 4568)
+[2025-10-10 10:44:16.001505] Received 4570 messages
+[2025-10-10 10:44:21.680914] Received 4580 messages
+[2025-10-10 10:44:32.936001] No messages for 5 seconds (total: 4588)
+[2025-10-10 10:44:37.468976] Received 4590 messages
+[2025-10-10 10:44:42.192725] Received 4600 messages
+[2025-10-10 10:44:42.201249] Received 4610 messages
+[2025-10-10 10:44:42.205781] Received 4620 messages
+[2025-10-10 10:44:42.257338] Received 4630 messages
+[2025-10-10 10:44:42.261062] Received 4640 messages
+[2025-10-10 10:44:42.271932] Received 4650 messages
+[2025-10-10 10:44:42.294023] Received 4660 messages
+[2025-10-10 10:44:42.307342] Received 4670 messages
+[2025-10-10 10:44:42.322891] Received 4680 messages
+[2025-10-10 10:44:42.323163] Received 4690 messages
+[2025-10-10 10:44:42.323588] Received 4700 messages
+[2025-10-10 10:44:42.323832] Received 4710 messages
+[2025-10-10 10:44:42.334441] Received 4720 messages
+[2025-10-10 10:44:47.365356] No messages for 5 seconds (total: 4722)
+[2025-10-10 10:44:50.984667] Received 4730 messages
+[2025-10-10 10:44:56.849839] Received 4740 messages
+[2025-10-10 10:45:02.542788] No messages for 5 seconds (total: 4747)
+[2025-10-10 10:45:04.536873] Received 4750 messages
+[2025-10-10 10:45:15.288634] Received 4760 messages
+[2025-10-10 10:45:28.034291] No messages for 5 seconds (total: 4764)
+[2025-10-10 10:45:31.778345] Received 4770 messages
+[2025-10-10 10:45:41.405400] No messages for 5 seconds (total: 4778)
+[2025-10-10 10:45:41.761048] Received 4780 messages
+[2025-10-10 10:45:41.776236] Received 4790 messages
+[2025-10-10 10:45:44.556986] Received 4800 messages
+[2025-10-10 10:45:52.355502] Received 4810 messages
+[2025-10-10 10:46:02.526578] No messages for 5 seconds (total: 4817)
+[2025-10-10 10:46:04.269461] Received 4820 messages
+[2025-10-10 10:46:04.287394] Received 4830 messages
+[2025-10-10 10:46:15.234659] Received 4840 messages
+[2025-10-10 10:46:16.355655] Received 4850 messages
+[2025-10-10 10:46:17.120050] Received 4860 messages
+[2025-10-10 10:46:22.211408] No messages for 5 seconds (total: 4865)
+[2025-10-10 10:46:28.031573] No messages for 5 seconds (total: 4866)
+[2025-10-10 10:46:33.403019] No messages for 5 seconds (total: 4867)
+[2025-10-10 10:46:35.856640] Received 4870 messages
+[2025-10-10 10:46:43.981268] No messages for 5 seconds (total: 4871)
+[2025-10-10 10:46:49.084097] No messages for 5 seconds (total: 4873)
+[2025-10-10 10:46:54.750456] No messages for 5 seconds (total: 4876)
+[2025-10-10 10:47:04.275492] No messages for 5 seconds (total: 4879)
+[2025-10-10 10:47:09.014119] Received 4880 messages
+[2025-10-10 10:47:20.343302] No messages for 5 seconds (total: 4889)
+[2025-10-10 10:47:20.597817] Received 4890 messages
+[2025-10-10 10:47:28.936856] No messages for 5 seconds (total: 4891)
+[2025-10-10 10:47:35.834398] Received 4900 messages
+[2025-10-10 10:47:43.153927] No messages for 5 seconds (total: 4904)
+[2025-10-10 10:47:50.006633] Received 4910 messages
+[2025-10-10 10:47:58.621308] Received 4920 messages
+[2025-10-10 10:48:03.638891] No messages for 5 seconds (total: 4920)
+[2025-10-10 10:48:12.086774] No messages for 5 seconds (total: 4921)
+[2025-10-10 10:48:22.656944] Received 4930 messages
+[2025-10-10 10:48:41.136944] Received 4940 messages
+[2025-10-10 10:48:48.662524] No messages for 5 seconds (total: 4948)
+[2025-10-10 10:48:55.379732] Received 4950 messages
+[2025-10-10 10:49:00.507866] No messages for 5 seconds (total: 4952)
+[2025-10-10 10:49:10.228472] No messages for 5 seconds (total: 4959)
+[2025-10-10 10:49:15.252531] No messages for 5 seconds (total: 4959)
+[2025-10-10 10:49:15.381379] Received 4960 messages
+[2025-10-10 10:49:22.045790] No messages for 5 seconds (total: 4962)
+[2025-10-10 10:49:24.501671] Received 4970 messages
+[2025-10-10 10:49:34.553330] No messages for 5 seconds (total: 4975)
+[2025-10-10 10:49:43.635694] Received 4980 messages
+[2025-10-10 10:49:48.660446] No messages for 5 seconds (total: 4980)
+[2025-10-10 10:50:03.212124] Received 4990 messages
+[2025-10-10 10:50:08.237455] No messages for 5 seconds (total: 4990)
+[2025-10-10 10:50:23.415788] Received 5000 messages
+[2025-10-10 10:50:31.549853] No messages for 5 seconds (total: 5008)
+[2025-10-10 10:50:35.403383] Received 5010 messages
+[2025-10-10 10:50:40.428936] No messages for 5 seconds (total: 5010)
+[2025-10-10 10:50:48.080673] Received 5020 messages
+[2025-10-10 10:50:53.882989] No messages for 5 seconds (total: 5024)
+[2025-10-10 10:51:00.423500] No messages for 5 seconds (total: 5026)
+[2025-10-10 10:51:05.448870] No messages for 5 seconds (total: 5026)
+[2025-10-10 10:51:10.473399] No messages for 5 seconds (total: 5026)
+[2025-10-10 10:51:20.423750] No messages for 5 seconds (total: 5028)
+[2025-10-10 10:51:25.435385] No messages for 5 seconds (total: 5028)
+[2025-10-10 10:51:26.798568] Received 5030 messages
+[2025-10-10 10:51:33.996476] No messages for 5 seconds (total: 5033)
+[2025-10-10 10:51:41.225651] Received 5040 messages
+[2025-10-10 10:51:51.180440] No messages for 5 seconds (total: 5043)
+[2025-10-10 10:52:00.085036] Received 5050 messages
+[2025-10-10 10:52:06.215533] No messages for 5 seconds (total: 5054)
+[2025-10-10 10:52:11.239527] No messages for 5 seconds (total: 5054)
+[2025-10-10 10:52:19.922654] Received 5060 messages
+[2025-10-10 10:52:35.245463] No messages for 5 seconds (total: 5064)
+[2025-10-10 10:52:40.036109] Received 5070 messages
+[2025-10-10 10:52:40.044041] Received 5080 messages
+[2025-10-10 10:52:42.091179] Received 5090 messages
+[2025-10-10 10:52:47.558906] Received 5100 messages
+[2025-10-10 10:52:58.738931] Received 5110 messages
+[2025-10-10 10:53:02.675311] Received 5120 messages
+[2025-10-10 10:53:05.780558] Received 5130 messages
+[2025-10-10 10:53:20.509275] No messages for 5 seconds (total: 5139)
+[2025-10-10 10:53:22.017031] Received 5140 messages
+[2025-10-10 10:53:33.129258] No messages for 5 seconds (total: 5148)
+[2025-10-10 10:53:35.494490] Received 5150 messages
+[2025-10-10 10:53:41.678430] Received 5160 messages
+[2025-10-10 10:53:41.984881] Received 5170 messages
+[2025-10-10 10:53:53.295469] No messages for 5 seconds (total: 5174)
+[2025-10-10 10:54:02.647438] No messages for 5 seconds (total: 5177)
+[2025-10-10 10:54:07.709874] Received 5180 messages
+[2025-10-10 10:54:10.018781] Received 5190 messages
+[2025-10-10 10:54:15.043458] No messages for 5 seconds (total: 5190)
+[2025-10-10 10:54:20.200051] Received 5200 messages
+[2025-10-10 10:54:30.331275] Received 5210 messages
+[2025-10-10 10:54:35.523680] Received 5220 messages
+[2025-10-10 10:54:40.387979] Received 5230 messages
+[2025-10-10 10:54:55.534400] Received 5240 messages
+[2025-10-10 10:55:00.559846] No messages for 5 seconds (total: 5240)
+[2025-10-10 10:55:13.769344] No messages for 5 seconds (total: 5243)
+[2025-10-10 10:55:23.203573] No messages for 5 seconds (total: 5249)
+[2025-10-10 10:55:24.083097] Received 5250 messages
+[2025-10-10 10:55:24.216041] Received 5260 messages
+[2025-10-10 10:55:24.226693] Received 5270 messages
+[2025-10-10 10:55:29.254277] No messages for 5 seconds (total: 5273)
+[2025-10-10 10:55:33.911436] Received 5280 messages
+[2025-10-10 10:55:39.282124] Received 5290 messages
+[2025-10-10 10:55:48.473073] Received 5300 messages
+[2025-10-10 10:56:03.034923] Received 5310 messages
+[2025-10-10 10:56:03.040145] Received 5320 messages
+[2025-10-10 10:56:03.050157] Received 5330 messages
+[2025-10-10 10:56:07.217448] Received 5340 messages
+[2025-10-10 10:56:16.544372] Received 5350 messages
+[2025-10-10 10:56:16.666867] Received 5360 messages
+[2025-10-10 10:56:23.859335] No messages for 5 seconds (total: 5369)
+[2025-10-10 10:56:25.486151] Received 5370 messages
+[2025-10-10 10:56:34.278179] Received 5380 messages
+[2025-10-10 10:56:35.935713] Received 5390 messages
+[2025-10-10 10:56:42.929353] Received 5400 messages
+[2025-10-10 10:56:45.939634] Received 5410 messages
+[2025-10-10 10:56:53.673415] No messages for 5 seconds (total: 5413)
+[2025-10-10 10:56:57.791963] Received 5420 messages
+[2025-10-10 10:57:10.068643] Received 5430 messages
+[2025-10-10 10:57:17.492627] Received 5440 messages
+[2025-10-10 10:57:22.071235] Received 5450 messages
+[2025-10-10 10:57:30.757025] Received 5460 messages
+[2025-10-10 10:57:36.379676] Received 5470 messages
+[2025-10-10 10:57:37.901821] Received 5480 messages
+[2025-10-10 10:57:43.087729] Received 5490 messages
+[2025-10-10 10:57:49.999924] Received 5500 messages
+[2025-10-10 10:57:55.594731] Received 5510 messages
+[2025-10-10 10:58:02.536963] Received 5520 messages
+[2025-10-10 10:58:14.356259] Received 5530 messages
+[2025-10-10 10:58:14.367347] Received 5540 messages
+[2025-10-10 10:58:15.088194] Received 5550 messages
+[2025-10-10 10:58:25.121723] Received 5560 messages
+[2025-10-10 10:58:26.863894] Received 5570 messages
+[2025-10-10 10:58:31.874003] No messages for 5 seconds (total: 5579)
+[2025-10-10 10:58:35.614150] Received 5580 messages
+[2025-10-10 10:58:45.269463] No messages for 5 seconds (total: 5587)
+[2025-10-10 10:58:45.728139] Received 5590 messages
+[2025-10-10 10:58:50.752502] No messages for 5 seconds (total: 5590)
+[2025-10-10 10:59:05.740480] Received 5600 messages
+[2025-10-10 10:59:16.758129] Received 5610 messages
+[2025-10-10 10:59:24.798471] No messages for 5 seconds (total: 5613)
+[2025-10-10 10:59:32.892272] No messages for 5 seconds (total: 5616)
+[2025-10-10 10:59:36.224642] Received 5620 messages
+[2025-10-10 10:59:47.069488] Received 5630 messages
+[2025-10-10 11:00:00.236692] Received 5640 messages
+[2025-10-10 11:00:00.305271] Received 5650 messages
+[2025-10-10 11:00:00.338348] Received 5660 messages
+[2025-10-10 11:00:05.356184] Received 5670 messages
+[2025-10-10 11:00:05.376991] Received 5680 messages
+[2025-10-10 11:00:11.941431] Received 5690 messages
+[2025-10-10 11:00:11.942108] Received 5700 messages
+[2025-10-10 11:00:11.942842] Received 5710 messages
+[2025-10-10 11:00:12.107363] Received 5720 messages
+[2025-10-10 11:00:17.143102] Received 5730 messages
+[2025-10-10 11:00:31.197331] No messages for 5 seconds (total: 5737)
+[2025-10-10 11:00:32.835569] Received 5740 messages
+[2025-10-10 11:00:33.497668] Received 5750 messages
+[2025-10-10 11:00:33.504898] Received 5760 messages
+[2025-10-10 11:00:40.677421] No messages for 5 seconds (total: 5764)
+[2025-10-10 11:00:44.772444] Received 5770 messages
+[2025-10-10 11:00:51.732368] Received 5780 messages
+[2025-10-10 11:00:55.848512] Received 5790 messages
+[2025-10-10 11:01:02.076019] No messages for 5 seconds (total: 5791)
+[2025-10-10 11:01:11.606276] Received 5800 messages
+[2025-10-10 11:01:17.602859] Received 5810 messages
+[2025-10-10 11:01:32.883475] No messages for 5 seconds (total: 5818)
+[2025-10-10 11:01:36.038939] Received 5820 messages
+[2025-10-10 11:01:42.761639] Received 5830 messages
+[2025-10-10 11:01:46.580230] Received 5840 messages
+[2025-10-10 11:01:46.584890] Received 5850 messages
+[2025-10-10 11:01:47.449421] Received 5860 messages
+[2025-10-10 11:01:47.459853] Received 5870 messages
+[2025-10-10 11:01:52.486293] No messages for 5 seconds (total: 5874)
+[2025-10-10 11:02:05.231645] Received 5880 messages
+[2025-10-10 11:02:10.257054] No messages for 5 seconds (total: 5880)
+[2025-10-10 11:02:21.164760] No messages for 5 seconds (total: 5884)
+[2025-10-10 11:02:26.190064] No messages for 5 seconds (total: 5884)
+[2025-10-10 11:02:40.896309] No messages for 5 seconds (total: 5889)
+[2025-10-10 11:02:41.376684] Received 5890 messages
+[2025-10-10 11:02:47.711270] No messages for 5 seconds (total: 5893)
+[2025-10-10 11:02:52.862051] Received 5900 messages
+[2025-10-10 11:02:55.998279] Received 5910 messages
+[2025-10-10 11:03:01.554928] Received 5920 messages
+[2025-10-10 11:03:01.570137] Received 5930 messages
+[2025-10-10 11:03:04.171614] Received 5940 messages
+[2025-10-10 11:03:09.196469] No messages for 5 seconds (total: 5940)
+[2025-10-10 11:03:23.344699] Received 5950 messages
+[2025-10-10 11:03:33.595457] No messages for 5 seconds (total: 5953)
+[2025-10-10 11:03:41.364347] Received 5960 messages
+[2025-10-10 11:03:49.141301] No messages for 5 seconds (total: 5969)
+[2025-10-10 11:03:50.818083] Received 5970 messages
+[2025-10-10 11:03:50.831009] Received 5980 messages
+[2025-10-10 11:04:00.778307] No messages for 5 seconds (total: 5982)
+[2025-10-10 11:04:05.803285] No messages for 5 seconds (total: 5982)
+[2025-10-10 11:04:13.095329] Received 5990 messages
+[2025-10-10 11:04:22.331261] No messages for 5 seconds (total: 5996)
+[2025-10-10 11:04:23.656375] Received 6000 messages
+[2025-10-10 11:04:34.554997] Received 6010 messages
+[2025-10-10 11:04:37.593578] Received 6020 messages
+[2025-10-10 11:04:37.611144] Received 6030 messages
+[2025-10-10 11:04:49.873841] No messages for 5 seconds (total: 6033)
+[2025-10-10 11:04:49.983971] Received 6040 messages
+[2025-10-10 11:04:49.994310] Received 6050 messages
+[2025-10-10 11:05:04.359719] Received 6060 messages
+[2025-10-10 11:05:06.835819] Received 6070 messages
+[2025-10-10 11:05:06.836650] Received 6080 messages
+[2025-10-10 11:05:06.840831] Received 6090 messages
+[2025-10-10 11:05:14.867566] No messages for 5 seconds (total: 6095)
+[2025-10-10 11:05:20.815689] No messages for 5 seconds (total: 6096)
+[2025-10-10 11:05:22.909541] Received 6100 messages
+[2025-10-10 11:05:28.332816] Received 6110 messages
+[2025-10-10 11:05:33.360372] No messages for 5 seconds (total: 6111)
+[2025-10-10 11:05:36.313052] Received 6120 messages
+[2025-10-10 11:05:41.340574] No messages for 5 seconds (total: 6122)
+[2025-10-10 11:05:51.040754] Received 6130 messages
+[2025-10-10 11:06:04.775294] Received 6140 messages
+[2025-10-10 11:06:09.801255] No messages for 5 seconds (total: 6141)
+[2025-10-10 11:06:19.827428] Received 6150 messages
+[2025-10-10 11:06:35.291183] Received 6160 messages
+[2025-10-10 11:06:39.923951] Received 6170 messages
+[2025-10-10 11:06:48.357279] No messages for 5 seconds (total: 6174)
+[2025-10-10 11:06:53.928321] Received 6180 messages
+[2025-10-10 11:06:53.941340] Received 6190 messages
+[2025-10-10 11:07:00.860568] No messages for 5 seconds (total: 6192)
+[2025-10-10 11:07:09.150478] No messages for 5 seconds (total: 6198)
+[2025-10-10 11:07:09.509830] Received 6200 messages
+[2025-10-10 11:07:09.515776] Received 6210 messages
+[2025-10-10 11:07:13.295737] Received 6220 messages
+[2025-10-10 11:07:13.304319] Received 6230 messages
+[2025-10-10 11:07:25.553398] Received 6240 messages
+[2025-10-10 11:07:30.918021] Received 6250 messages
+[2025-10-10 11:07:44.269352] No messages for 5 seconds (total: 6253)
+[2025-10-10 11:07:48.820556] Received 6260 messages
+[2025-10-10 11:08:02.622930] No messages for 5 seconds (total: 6265)
+[2025-10-10 11:08:08.731150] Received 6270 messages
+[2025-10-10 11:08:15.867288] No messages for 5 seconds (total: 6272)
+[2025-10-10 11:08:18.095905] Received 6280 messages
+[2025-10-10 11:08:23.207693] No messages for 5 seconds (total: 6287)
+[2025-10-10 11:08:28.232457] No messages for 5 seconds (total: 6287)
+[2025-10-10 11:08:29.793297] Received 6290 messages
+[2025-10-10 11:08:31.059721] Received 6300 messages
+[2025-10-10 11:08:44.373733] No messages for 5 seconds (total: 6308)
+[2025-10-10 11:08:44.514620] Received 6310 messages
+[2025-10-10 11:08:52.197521] No messages for 5 seconds (total: 6314)
+[2025-10-10 11:09:01.960640] Received 6320 messages
+[2025-10-10 11:09:09.367975] Received 6330 messages
+[2025-10-10 11:09:14.410462] No messages for 5 seconds (total: 6335)
+[2025-10-10 11:09:20.925336] No messages for 5 seconds (total: 6337)
+[2025-10-10 11:09:23.197663] Received 6340 messages
+[2025-10-10 11:09:28.225855] No messages for 5 seconds (total: 6342)
+[2025-10-10 11:09:32.274941] Received 6350 messages
+[2025-10-10 11:09:40.929569] No messages for 5 seconds (total: 6354)
+[2025-10-10 11:09:46.359092] No messages for 5 seconds (total: 6355)
+[2025-10-10 11:09:55.924382] Received 6360 messages
+[2025-10-10 11:10:00.949849] No messages for 5 seconds (total: 6360)
+[2025-10-10 11:10:07.484261] No messages for 5 seconds (total: 6365)
+[2025-10-10 11:10:12.772850] No messages for 5 seconds (total: 6366)
+[2025-10-10 11:10:16.144696] Received 6370 messages
+[2025-10-10 11:10:17.136768] Received 6380 messages
+[2025-10-10 11:10:23.008688] No messages for 5 seconds (total: 6386)
+[2025-10-10 11:10:30.604428] Received 6390 messages
+[2025-10-10 11:10:36.013495] Received 6400 messages
+[2025-10-10 11:10:45.413466] Received 6410 messages
+[2025-10-10 11:10:49.713780] Received 6420 messages
+[2025-10-10 11:10:49.837992] Received 6430 messages
+[2025-10-10 11:10:50.964461] Received 6440 messages
+[2025-10-10 11:10:55.662284] Received 6450 messages
+[2025-10-10 11:11:06.220844] No messages for 5 seconds (total: 6459)
+[2025-10-10 11:11:06.507578] Received 6460 messages
+[2025-10-10 11:11:11.522328] No messages for 5 seconds (total: 6461)
+[2025-10-10 11:11:16.994558] Received 6470 messages
+[2025-10-10 11:11:17.001933] Received 6480 messages
+[2025-10-10 11:11:19.648946] Received 6490 messages
+[2025-10-10 11:11:28.079614] Received 6500 messages
+[2025-10-10 11:11:33.104468] No messages for 5 seconds (total: 6500)
+[2025-10-10 11:11:43.274094] Received 6510 messages
+[2025-10-10 11:11:52.631520] Received 6520 messages
+[2025-10-10 11:12:01.874286] No messages for 5 seconds (total: 6528)
+[2025-10-10 11:12:05.001893] Received 6530 messages
+[2025-10-10 11:12:20.494721] Received 6540 messages
+[2025-10-10 11:12:32.426873] Received 6550 messages
+[2025-10-10 11:12:44.024322] No messages for 5 seconds (total: 6552)
+[2025-10-10 11:12:50.340079] Received 6560 messages
+[2025-10-10 11:12:52.331276] Received 6570 messages
+[2025-10-10 11:13:05.157327] No messages for 5 seconds (total: 6578)
+[2025-10-10 11:13:06.652567] Received 6580 messages
+[2025-10-10 11:13:11.679786] No messages for 5 seconds (total: 6581)
+[2025-10-10 11:13:16.885265] Received 6590 messages
+[2025-10-10 11:13:21.912346] No messages for 5 seconds (total: 6592)
+[2025-10-10 11:13:30.847257] Received 6600 messages
+[2025-10-10 11:13:41.085370] No messages for 5 seconds (total: 6606)
+[2025-10-10 11:13:46.217362] No messages for 5 seconds (total: 6607)
+[2025-10-10 11:13:51.225319] No messages for 5 seconds (total: 6607)
+[2025-10-10 11:13:52.002919] Received 6610 messages
+[2025-10-10 11:14:01.487317] Received 6620 messages
+[2025-10-10 11:14:04.996845] Received 6630 messages
+[2025-10-10 11:14:10.003520] No messages for 5 seconds (total: 6630)
+[2025-10-10 11:14:15.028320] No messages for 5 seconds (total: 6630)
+[2025-10-10 11:14:21.550138] No messages for 5 seconds (total: 6632)
+[2025-10-10 11:14:26.551485] No messages for 5 seconds (total: 6632)
+[2025-10-10 11:14:30.395588] Received 6640 messages
+[2025-10-10 11:14:30.406074] Received 6650 messages
+[2025-10-10 11:14:33.483388] Received 6660 messages
+[2025-10-10 11:14:44.680348] Received 6670 messages
+[2025-10-10 11:14:44.692100] Received 6680 messages
+[2025-10-10 11:14:48.854008] Received 6690 messages
+[2025-10-10 11:14:51.968248] Received 6700 messages
+[2025-10-10 11:14:58.908610] Received 6710 messages
+[2025-10-10 11:15:05.339711] Received 6720 messages
+[2025-10-10 11:15:07.884029] Received 6730 messages
+[2025-10-10 11:15:13.244869] Received 6740 messages
+[2025-10-10 11:15:16.100447] Received 6750 messages
+[2025-10-10 11:15:19.657643] Received 6760 messages
+[2025-10-10 11:15:26.475207] No messages for 5 seconds (total: 6765)
+[2025-10-10 11:15:34.818404] Received 6770 messages
+[2025-10-10 11:15:42.112779] Received 6780 messages
+[2025-10-10 11:15:48.594823] Received 6790 messages
+[2025-10-10 11:15:56.659145] Received 6800 messages
+[2025-10-10 11:16:03.183988] No messages for 5 seconds (total: 6802)
+[2025-10-10 11:16:08.208326] No messages for 5 seconds (total: 6802)
+[2025-10-10 11:16:17.122922] Received 6810 messages
+[2025-10-10 11:16:30.767327] No messages for 5 seconds (total: 6814)
+[2025-10-10 11:16:44.440515] No messages for 5 seconds (total: 6819)
+[2025-10-10 11:16:44.596171] Received 6820 messages
+[2025-10-10 11:16:55.039860] Received 6830 messages
+[2025-10-10 11:17:00.309116] Received 6840 messages
+[2025-10-10 11:17:02.628063] Received 6850 messages
+[2025-10-10 11:17:18.751171] Received 6860 messages
+[2025-10-10 11:17:34.246282] No messages for 5 seconds (total: 6866)
+[2025-10-10 11:17:39.199048] Received 6870 messages
+[2025-10-10 11:17:46.950325] No messages for 5 seconds (total: 6875)
+[2025-10-10 11:17:54.290302] Received 6880 messages
+[2025-10-10 11:18:01.206309] No messages for 5 seconds (total: 6888)
+[2025-10-10 11:18:06.179571] Received 6890 messages
+[2025-10-10 11:18:12.692957] Received 6900 messages
+[2025-10-10 11:18:12.703161] Received 6910 messages
+[2025-10-10 11:18:12.708135] Received 6920 messages
+[2025-10-10 11:18:16.167142] Received 6930 messages
+[2025-10-10 11:18:18.330714] Error: no close frame received or sent
