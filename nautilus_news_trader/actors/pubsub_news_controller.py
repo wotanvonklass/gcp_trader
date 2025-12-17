@@ -290,16 +290,16 @@ class PubSubNewsController(Controller):
                 # For test news (with [TEST] in headline), skip Polygon check and use mock data
                 if '[TEST]' in headline:
                     self.log.info(f"🧪 [TRACE:{correlation_id}] TEST NEWS detected - using mock volume data")
-                    # Fetch real price from Alpaca for test orders to actually fill
-                    test_price = self._get_alpaca_quote(symbol)
+                    # Fetch real price from Polygon for test orders to actually fill
+                    test_price = self._get_polygon_quote(symbol)
                     if not test_price:
-                        self.log.warning(f"⚠️  [TRACE:{correlation_id}] Could not get Alpaca quote for {symbol}, using fallback $100")
+                        self.log.warning(f"⚠️  [TRACE:{correlation_id}] Could not get Polygon quote for {symbol}, using fallback $100")
                         test_price = 100.00
-                    self.log.info(f"🧪 [TRACE:{correlation_id}] Using real price from Alpaca: ${test_price:.2f}")
+                    self.log.info(f"🧪 [TRACE:{correlation_id}] Using real price from Polygon: ${test_price:.2f}")
                     volume_data = {
                         'symbol': symbol,
                         'volume': 10000,  # Mock volume
-                        'avg_price': test_price,  # Real price from Alpaca
+                        'avg_price': test_price,  # Real price from Polygon
                         'last_price': test_price,
                         'bars_count': 3,
                         'timestamp': datetime.now(timezone.utc)
@@ -329,43 +329,50 @@ class PubSubNewsController(Controller):
             import traceback
             self.log.error(f"Traceback: {traceback.format_exc()}")
 
-    def _get_alpaca_quote(self, symbol: str) -> Optional[float]:
-        """Get current quote from Alpaca for a symbol."""
+    def _get_polygon_quote(self, symbol: str) -> Optional[float]:
+        """Get current quote from Polygon for a symbol."""
         try:
             import requests
-            import os
 
-            api_key = os.environ.get('ALPACA_API_KEY')
-            secret_key = os.environ.get('ALPACA_SECRET_KEY')
-
-            if not api_key or not secret_key:
-                self.log.warning("Alpaca credentials not found in environment")
+            polygon_key = self._controller_config.polygon_api_key
+            if not polygon_key:
+                self.log.warning("Polygon API key not configured")
                 return None
 
-            url = f"https://data.alpaca.markets/v2/stocks/{symbol}/quotes/latest"
-            headers = {
-                'APCA-API-KEY-ID': api_key,
-                'APCA-API-SECRET-KEY': secret_key
-            }
+            # Get last trade from Polygon (most accurate current price)
+            url = f"https://api.polygon.io/v2/last/trade/{symbol}"
+            params = {'apiKey': polygon_key}
 
-            response = requests.get(url, headers=headers, timeout=5)
+            response = requests.get(url, params=params, timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                quote = data.get('quote', {})
-                # Use ask price for buy orders (what we'll pay)
-                ask_price = quote.get('ap')
-                if ask_price:
-                    return float(ask_price)
-                # Fallback to bid price
-                bid_price = quote.get('bp')
-                if bid_price:
-                    return float(bid_price)
-            else:
-                self.log.warning(f"Alpaca quote request failed: {response.status_code}")
-                return None
+                results = data.get('results', {})
+                price = results.get('p')  # Last trade price
+                if price:
+                    return float(price)
+
+            # Fallback to last quote if no trade
+            quote_url = f"https://api.polygon.io/v3/quotes/{symbol}"
+            quote_params = {'apiKey': polygon_key, 'limit': 1, 'sort': 'timestamp', 'order': 'desc'}
+
+            quote_response = requests.get(quote_url, params=quote_params, timeout=5)
+            if quote_response.status_code == 200:
+                quote_data = quote_response.json()
+                results = quote_data.get('results', [])
+                if results:
+                    # Use ask price for buy orders
+                    ask_price = results[0].get('ask_price')
+                    if ask_price:
+                        return float(ask_price)
+                    bid_price = results[0].get('bid_price')
+                    if bid_price:
+                        return float(bid_price)
+
+            self.log.warning(f"Polygon quote request failed: {response.status_code}")
+            return None
 
         except Exception as e:
-            self.log.error(f"Error getting Alpaca quote: {e}")
+            self.log.error(f"Error getting Polygon quote: {e}")
             return None
 
     def _check_polygon_trading(self, symbol: str, correlation_id: str = "") -> Optional[dict]:

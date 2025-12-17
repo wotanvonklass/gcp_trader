@@ -61,9 +61,9 @@ class NewsVolumeStrategy(Strategy):
     Simple strategy that enters on news and exits after delay.
 
     Lifecycle:
-    1. on_start(): Place entry limit order via Nautilus
+    1. on_start(): Place entry limit order via Nautilus, subscribe to market data
     2. on_order_filled(): Schedule exit timer
-    3. on_timer(): Place exit order
+    3. on_timer(): Place exit order using real-time quote data
     4. on_position_closed(): Stop strategy
 
     Position Isolation:
@@ -86,12 +86,19 @@ class NewsVolumeStrategy(Strategy):
             venue=Venue("ALPACA")
         )
 
+        # Create Polygon instrument ID for market data
+        self.polygon_instrument_id = InstrumentId(
+            symbol=Symbol(config.ticker),
+            venue=Venue("POLYGON")
+        )
+
         # Track state
         self.entry_order_id = None
         self.exit_order_id = None
         self.entry_filled = False
         self.entry_timer_set = False
         self.exit_timer_set = False
+        self.entry_timeout_set = False  # 5-second entry timeout
 
         # Get instrument reference
         self.instrument: Optional[Instrument] = None
@@ -105,47 +112,115 @@ class NewsVolumeStrategy(Strategy):
         self.exit_decision_price: Optional[float] = None  # Market price when exit was decided
         self.entry_fill_price: Optional[float] = None     # Actual entry fill price (avg)
 
-    def _get_alpaca_quote(self) -> Optional[float]:
-        """Get current bid price from Alpaca for exit pricing."""
+        # Real-time market data from WebSocket
+        self.last_trade_price: Optional[float] = None
+        self.last_trade_time_ns: Optional[int] = None
+        self.last_bid_price: Optional[float] = None
+        self.last_ask_price: Optional[float] = None
+        self.last_quote_time_ns: Optional[int] = None
+
+    def _get_current_price(self) -> Optional[float]:
+        """Get current price - prefer WebSocket data, fallback to HTTP API."""
+        trace_id = self._config.correlation_id
+
+        # Priority 1: Use real-time WebSocket trade data (most accurate)
+        if self.last_trade_price and self.last_trade_time_ns:
+            age_seconds = (self.clock.timestamp_ns() - self.last_trade_time_ns) / 1e9
+            if age_seconds < 60:  # Fresh data (< 60 seconds old)
+                self.log.info(f"   [TRACE:{trace_id}] Using WebSocket trade: ${self.last_trade_price:.4f} ({age_seconds:.1f}s ago)")
+                return self.last_trade_price
+            else:
+                self.log.warning(f"   [TRACE:{trace_id}] WebSocket trade stale: {age_seconds:.0f}s old")
+
+        # Priority 2: Use real-time WebSocket quote data (bid price for selling)
+        if self.last_bid_price and self.last_quote_time_ns:
+            age_seconds = (self.clock.timestamp_ns() - self.last_quote_time_ns) / 1e9
+            if age_seconds < 60:  # Fresh data (< 60 seconds old)
+                self.log.info(f"   [TRACE:{trace_id}] Using WebSocket quote bid: ${self.last_bid_price:.4f} ({age_seconds:.1f}s ago)")
+                return self.last_bid_price
+            else:
+                self.log.warning(f"   [TRACE:{trace_id}] WebSocket quote stale: {age_seconds:.0f}s old")
+
+        # Priority 3: Check NautilusTrader cache for Polygon data
+        cached_trade = self.cache.trade_tick(self.polygon_instrument_id)
+        if cached_trade:
+            self.log.info(f"   [TRACE:{trace_id}] Using cached trade: ${float(cached_trade.price):.4f}")
+            return float(cached_trade.price)
+
+        cached_quote = self.cache.quote_tick(self.polygon_instrument_id)
+        if cached_quote:
+            self.log.info(f"   [TRACE:{trace_id}] Using cached quote bid: ${float(cached_quote.bid_price):.4f}")
+            return float(cached_quote.bid_price)
+
+        # Priority 4: Fallback to HTTP API (slower but reliable)
+        self.log.info(f"   [TRACE:{trace_id}] No WebSocket data, falling back to HTTP API")
+        return self._get_price_from_http()
+
+    def _get_price_from_http(self) -> Optional[float]:
+        """Fallback: Get current price from Polygon HTTP API."""
         try:
             import requests
             import os
+            from datetime import datetime, timezone, timedelta
 
-            api_key = os.environ.get('ALPACA_API_KEY')
-            secret_key = os.environ.get('ALPACA_SECRET_KEY')
-
-            if not api_key or not secret_key:
-                self.log.warning("Alpaca credentials not found in environment")
+            polygon_key = os.environ.get('POLYGON_API_KEY')
+            if not polygon_key:
+                self.log.warning("POLYGON_API_KEY not found in environment")
                 return None
 
-            url = f"https://data.alpaca.markets/v2/stocks/{self.ticker}/quotes/latest"
-            headers = {
-                'APCA-API-KEY-ID': api_key,
-                'APCA-API-SECRET-KEY': secret_key
-            }
+            # Get last trade from Polygon (most accurate current price)
+            url = f"https://api.polygon.io/v2/last/trade/{self.ticker}?apiKey={polygon_key}"
 
-            response = requests.get(url, headers=headers, timeout=5)
+            response = requests.get(url, timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                quote = data.get('quote', {})
-                # For SELL, use bid price (what we can sell at)
-                bid_price = quote.get('bp')
-                if bid_price:
-                    return float(bid_price)
-                # Fallback to ask if no bid
-                ask_price = quote.get('ap')
-                if ask_price:
-                    return float(ask_price)
+                results = data.get('results', {})
+                price = results.get('p')  # Last trade price
+                timestamp_ns = results.get('t')  # Timestamp in nanoseconds
+
+                if price and timestamp_ns:
+                    # Check quote freshness (reject if older than 60 seconds)
+                    trade_time = datetime.fromtimestamp(timestamp_ns / 1e9, tz=timezone.utc)
+                    age_seconds = (datetime.now(timezone.utc) - trade_time).total_seconds()
+
+                    self.log.info(f"   HTTP Polygon last trade: ${price:.4f} ({age_seconds:.1f}s ago)")
+
+                    if age_seconds > 60:
+                        self.log.warning(f"HTTP Polygon trade stale: {age_seconds:.0f}s old")
+
+                    return float(price)
+                elif price:
+                    self.log.info(f"   HTTP Polygon last trade: ${price:.4f} (no timestamp)")
+                    return float(price)
             else:
-                self.log.warning(f"Alpaca quote request failed: {response.status_code}")
-                return None
+                self.log.warning(f"HTTP Polygon trade request failed: {response.status_code}")
+
+            # Fallback: Get latest bar if no trade
+            now = datetime.now(timezone.utc)
+            start = (now - timedelta(seconds=10)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            end = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+            bar_url = f"https://api.polygon.io/v2/aggs/ticker/{self.ticker}/range/1/second/{start}/{end}?apiKey={polygon_key}&limit=10&sort=desc"
+
+            bar_response = requests.get(bar_url, timeout=5)
+            if bar_response.status_code == 200:
+                bar_data = bar_response.json()
+                bars = bar_data.get('results', [])
+                if bars:
+                    latest_bar = bars[0]
+                    close_price = latest_bar.get('c')
+                    if close_price:
+                        self.log.info(f"   HTTP Polygon bar fallback: ${close_price:.4f}")
+                        return float(close_price)
+
+            return None
 
         except Exception as e:
-            self.log.error(f"Error getting Alpaca quote: {e}")
+            self.log.error(f"Error getting HTTP Polygon price: {e}")
             return None
 
     def on_start(self):
-        """Called when strategy starts - place entry order."""
+        """Called when strategy starts - place entry order and subscribe to market data."""
         trace_id = self._config.correlation_id
         self.log.info(f"🚀 [TRACE:{trace_id}] NewsVolumeStrategy starting for {self.ticker}")
         self.log.info(f"   [TRACE:{trace_id}] Strategy ID: {self._config.strategy_id}")
@@ -167,6 +242,16 @@ class NewsVolumeStrategy(Strategy):
             self.stop()
             return
 
+        # Subscribe to real-time market data from Polygon proxy for exit pricing
+        try:
+            self.log.info(f"📊 [TRACE:{trace_id}] Subscribing to Polygon data for {self.polygon_instrument_id}")
+            self.subscribe_trade_ticks(self.polygon_instrument_id)
+            self.subscribe_quote_ticks(self.polygon_instrument_id)
+            self.log.info(f"✅ [TRACE:{trace_id}] Subscribed to trades and quotes via WebSocket")
+        except Exception as e:
+            self.log.warning(f"⚠️ [TRACE:{trace_id}] Could not subscribe to Polygon data: {e}")
+            self.log.warning(f"   [TRACE:{trace_id}] Will use HTTP API fallback for exit pricing")
+
         # Place entry order immediately for minimum latency
         self._place_entry_order()
 
@@ -180,6 +265,15 @@ class NewsVolumeStrategy(Strategy):
             alert_time_ns=self.clock.timestamp_ns() + 1_000_000,  # 1ms - fires on next event loop
             callback=self._check_fast_fill,
         )
+
+        # Set 5-second timeout for entry order - cancel if no fills at all
+        self.entry_timeout_set = True
+        self.clock.set_timer(
+            name=f"entry_timeout_{self._config.strategy_id}",
+            interval=pd.Timedelta(seconds=5),
+            callback=self._on_entry_timeout,
+        )
+        self.log.info(f"⏱️  [TRACE:{trace_id}] Entry timeout set: 5 seconds")
 
     def _check_fast_fill(self, event):
         """Check cache for fast fills that arrived before RUNNING state."""
@@ -195,9 +289,74 @@ class NewsVolumeStrategy(Strategy):
             self.log.info(f"⚡ [TRACE:{trace_id}] Fast fill detected via cache check - order filled before RUNNING state")
             self.entry_filled = True
             self.entry_fill_price = float(order.avg_px) if order.avg_px else None
+            self._cancel_entry_timeout()  # Cancel timeout since we filled
             self._schedule_exit()
         elif not self.entry_filled:
             self.log.info(f"   [TRACE:{trace_id}] Cache check complete - order not yet filled, waiting for callback")
+
+    def _on_entry_timeout(self, event):
+        """Handle 5-second entry timeout - cancel unfilled order or let partial fills run."""
+        self.entry_timeout_set = False
+        trace_id = self._config.correlation_id
+
+        if not self.entry_order_id:
+            return
+
+        order = self.cache.order(self.entry_order_id)
+        if not order:
+            return
+
+        # Check if order has any fills
+        filled_qty = float(order.filled_qty) if order.filled_qty else 0
+
+        if filled_qty == 0 and order.is_open:
+            # No fills at all - cancel and stop strategy
+            self.log.warning(f"⏰ [TRACE:{trace_id}] Entry timeout: No fills after 5s - cancelling order")
+            try:
+                self.cancel_order(order)
+                self.log.info(f"🧹 [TRACE:{trace_id}] Entry order cancelled due to timeout")
+            except Exception as e:
+                self.log.error(f"❌ [TRACE:{trace_id}] Error cancelling timed-out entry order: {e}")
+            self.stop()
+        elif filled_qty > 0 and order.is_open:
+            # Partial fill - cancel remaining unfilled portion, keep strategy running
+            unfilled_qty = float(order.quantity) - filled_qty
+            self.log.info(f"⏰ [TRACE:{trace_id}] Entry timeout: Partial fill ({filled_qty:.0f} filled, {unfilled_qty:.0f} unfilled)")
+            self.log.info(f"🧹 [TRACE:{trace_id}] Cancelling unfilled portion, strategy continues with filled shares")
+            try:
+                self.cancel_order(order)
+            except Exception as e:
+                self.log.warning(f"⚠️  [TRACE:{trace_id}] Error cancelling partial entry order: {e}")
+            # Don't stop - let strategy run with filled shares
+        else:
+            self.log.info(f"⏰ [TRACE:{trace_id}] Entry timeout: Order already fully filled or closed")
+
+    def _cancel_entry_timeout(self):
+        """Cancel the entry timeout timer (called when entry fills)."""
+        if self.entry_timeout_set:
+            try:
+                timer_name = f"entry_timeout_{self._config.strategy_id}"
+                self.clock.cancel_timer(timer_name)
+                self.entry_timeout_set = False
+            except Exception:
+                pass  # Timer may have already fired
+
+    def _cancel_unfilled_entry_order(self):
+        """Cancel any remaining unfilled portion of entry order (handles partial fills after exit)."""
+        if not self.entry_order_id:
+            return
+
+        try:
+            order = self.cache.order(self.entry_order_id)
+            if order and order.is_open:
+                trace_id = self._config.correlation_id
+                filled_qty = float(order.filled_qty) if order.filled_qty else 0
+                unfilled_qty = float(order.quantity) - filled_qty
+                if unfilled_qty > 0:
+                    self.log.info(f"🧹 [TRACE:{trace_id}] Cancelling unfilled entry order: {unfilled_qty:.0f} shares remaining")
+                    self.cancel_order(order)
+        except Exception as e:
+            self.log.warning(f"Error cancelling unfilled entry order: {e}")
 
     def _place_entry_order(self):
         """Place limit buy order with offset to ensure fill using Nautilus execution."""
@@ -280,6 +439,9 @@ class NewsVolumeStrategy(Strategy):
             self.entry_filled = True
             self.entry_fill_price = fill_price
 
+            # Cancel entry timeout since we got a fill
+            self._cancel_entry_timeout()
+
             # Calculate entry slippage with error handling
             try:
                 entry_price = float(self._config.entry_price)
@@ -332,12 +494,34 @@ class NewsVolumeStrategy(Strategy):
             except Exception as e:
                 self.log.warning(f"   [TRACE:{trace_id}] Could not calculate exit slippage: {e}")
 
+            # Cancel any remaining unfilled portion of entry order (handles partial fills)
+            self._cancel_unfilled_entry_order()
+
     def on_order_rejected(self, event):
         """Called when order is rejected."""
         trace_id = self._config.correlation_id
         self.log.error(f"❌ [TRACE:{trace_id}] Order REJECTED: {event.client_order_id}")
         self.log.error(f"   [TRACE:{trace_id}] Reason: {event.reason}")
         self.stop()
+
+    def on_trade_tick(self, tick):
+        """Handle incoming trade ticks from Polygon WebSocket."""
+        # Only process ticks for our instrument
+        if tick.instrument_id == self.polygon_instrument_id:
+            self.last_trade_price = float(tick.price)
+            self.last_trade_time_ns = tick.ts_event
+            # Debug logging (commented out for production to reduce noise)
+            # self.log.debug(f"Trade tick: {self.ticker} @ ${self.last_trade_price:.4f}")
+
+    def on_quote_tick(self, tick):
+        """Handle incoming quote ticks from Polygon WebSocket."""
+        # Only process ticks for our instrument
+        if tick.instrument_id == self.polygon_instrument_id:
+            self.last_bid_price = float(tick.bid_price)
+            self.last_ask_price = float(tick.ask_price)
+            self.last_quote_time_ns = tick.ts_event
+            # Debug logging (commented out for production to reduce noise)
+            # self.log.debug(f"Quote tick: {self.ticker} bid=${self.last_bid_price:.4f} ask=${self.last_ask_price:.4f}")
 
     def on_timer(self, event):
         """Handle timer events."""
@@ -384,22 +568,15 @@ class NewsVolumeStrategy(Strategy):
 
             # positions_open() only returns non-flat positions, so no need to check is_flat
             qty = position.quantity
+            trace_id = self._config.correlation_id
 
-            # Get current market price - use Alpaca API for accurate pricing
-            current_price = self._get_alpaca_quote()
+            # Get current market price (WebSocket data preferred, HTTP API fallback)
+            self.log.info(f"📊 [TRACE:{trace_id}] Getting current price for exit...")
+            current_price = self._get_current_price()
             if not current_price:
-                # Fallback to cache
-                last_quote = self.cache.quote_tick(self.instrument_id)
-                if last_quote:
-                    current_price = float(last_quote.bid_price)
-                else:
-                    last_trade = self.cache.trade_tick(self.instrument_id)
-                    if last_trade:
-                        current_price = float(last_trade.price)
-                    else:
-                        self.log.error(f"No market data available for {self.ticker}")
-                        self.stop()
-                        return
+                self.log.error(f"❌ [TRACE:{trace_id}] No market data available for {self.ticker}")
+                self.stop()
+                return
 
             # Store decision price for slippage calculation
             self.exit_decision_price = current_price
@@ -418,7 +595,6 @@ class NewsVolumeStrategy(Strategy):
             )
 
             self.exit_order_id = order.client_order_id
-            trace_id = self._config.correlation_id
             self.log.info(f"✅ [TRACE:{trace_id}] Submitting SELL order: {self.ticker} x{qty} @ ${limit_price:.2f}")
             self.log.info(f"   [TRACE:{trace_id}] Exit decision price: ${current_price:.4f}")
 
@@ -456,9 +632,17 @@ class NewsVolumeStrategy(Strategy):
         self.stop()
 
     def on_stop(self):
-        """Called when strategy stops - cancel pending orders and exit any open position."""
+        """Called when strategy stops - cancel pending orders, unsubscribe data, and exit any open position."""
         trace_id = self._config.correlation_id
         self.log.info(f"🛑 [TRACE:{trace_id}] NewsVolumeStrategy stopping for {self.ticker}")
+
+        # Unsubscribe from Polygon market data
+        try:
+            self.unsubscribe_trade_ticks(self.polygon_instrument_id)
+            self.unsubscribe_quote_ticks(self.polygon_instrument_id)
+            self.log.info(f"   [TRACE:{trace_id}] Unsubscribed from Polygon data")
+        except Exception as e:
+            self.log.warning(f"   [TRACE:{trace_id}] Error unsubscribing from Polygon data: {e}")
 
         # Cancel fast-fill check timer if still pending
         if self.entry_timer_set:
@@ -470,16 +654,11 @@ class NewsVolumeStrategy(Strategy):
             except Exception as e:
                 self.log.warning(f"   [TRACE:{trace_id}] Error cancelling fast-fill check: {e}")
 
-        # Cancel unfilled entry order if exists
-        if self.entry_order_id and not self.entry_filled:
-            self.log.info(f"   [TRACE:{trace_id}] Cancelling unfilled entry order: {self.entry_order_id}")
-            try:
-                order = self.cache.order(self.entry_order_id)
-                if order and order.is_open:
-                    self.cancel_order(order)
-                    self.log.info(f"✅ [TRACE:{trace_id}] Entry order cancel requested")
-            except Exception as e:
-                self.log.error(f"❌ [TRACE:{trace_id}] Error cancelling entry order: {e}")
+        # Cancel entry timeout timer if still pending
+        self._cancel_entry_timeout()
+
+        # Cancel any unfilled portion of entry order (handles partial fills too)
+        self._cancel_unfilled_entry_order()
 
         # Get current position from cache (filtered by strategy_id for isolation)
         positions = self.cache.positions_open(
@@ -514,8 +693,8 @@ class NewsVolumeStrategy(Strategy):
             # positions_open() only returns non-flat positions
             qty = position.quantity
 
-            # Get current market price - use Alpaca API for accurate pricing
-            current_price = self._get_alpaca_quote()
+            # Get current market price from Polygon
+            current_price = self._get_current_price()
             if not current_price:
                 # Fallback to cache
                 last_quote = self.cache.quote_tick(self.instrument_id)

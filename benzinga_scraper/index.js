@@ -192,10 +192,17 @@ async function loginToBenzinga(page) {
       throw new Error('Login button not found');
     }
 
-    await Promise.all([
-      loginButtons[0].click(),
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 })
-    ]);
+    // Click login and wait for URL change (SPA doesn't trigger full navigation)
+    await loginButtons[0].click();
+
+    // Wait for URL to change from login page (Benzinga redirects to dashboard after login)
+    await page.waitForFunction(
+      () => !window.location.href.includes('/login'),
+      { timeout: 60000 }
+    );
+
+    // Give the SPA a moment to initialize
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     console.log('✓ Logged into Benzinga Pro');
     console.log('Current URL after login:', page.url());
@@ -570,16 +577,20 @@ async function startRealtimeMonitoring() {
     // Login (stealth handled by puppeteer-extra-plugin-stealth)
     await loginToBenzinga(page);
 
-    // Navigate to dashboard
+    // Navigate to dashboard (use domcontentloaded - networkidle2 never completes due to WebSocket activity)
     console.log('Navigating to dashboard...');
     await page.goto('https://pro.benzinga.com/dashboard', {
-      waitUntil: 'networkidle2',
+      waitUntil: 'domcontentloaded',
       timeout: 30000
     });
 
-    // Wait for newsfeed to load
-    await page.waitForSelector('.ReactVirtualized__Grid', { timeout: 15000 });
+    // Wait for React to render - domcontentloaded fires early before components mount
+    console.log('Waiting for React components to render...');
     await page.waitForTimeout(10000);
+
+    // Wait for newsfeed to load (increased timeout for slow renders)
+    await page.waitForSelector('.ReactVirtualized__Grid', { timeout: 45000 });
+    await page.waitForTimeout(5000);
     console.log('✓ Newsfeed loaded, starting DOM monitoring...');
 
     // Take screenshot for debugging (optional - may fail locally)

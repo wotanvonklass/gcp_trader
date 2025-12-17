@@ -339,11 +339,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let live = live_upstream.clone();
 
         tokio::spawn(async move {
-            let path = Arc::new(Mutex::new(String::new()));
+            let path = Arc::new(std::sync::Mutex::new(String::new()));
             let path_clone = path.clone();
 
             let callback = move |req: &Request, response: Response| {
-                let mut p = path_clone.blocking_lock();
+                let mut p = path_clone.lock().unwrap();
                 *p = req.uri().path().to_string();
                 Ok(response)
             };
@@ -356,7 +356,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let request_path = path.lock().await.clone();
+            let request_path = path.lock().unwrap().clone();
             let client_id = Uuid::new_v4();
 
             // Determine feed type from path

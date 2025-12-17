@@ -341,4 +341,86 @@ gcloud pubsub subscriptions list --project=gnw-trader | grep benzinga
 ```bash
 gcloud compute ssh benzinga_scraper --zone=us-east4-a --command="sudo systemctl restart benzinga_scraper"
 ```
-- Nautilus trader is a private fork with custom alpaca and polygon adapter. Source code is here: /Users/wotanvonklass/Development/nautilus_trader_private/tests
+## Building NautilusTrader Private Fork
+
+The news-trader uses a private fork of NautilusTrader with custom Alpaca and Polygon adapters. Source code is at `/Users/wotanvonklass/Development/nautilus_trader_private`.
+
+### Build and Deploy Process
+
+Building requires ~2 hours on an e2-medium VM (Rust + Cython compilation). Use a dedicated spot VM to avoid blocking the news-trader.
+
+**Step 1: Create spot build VM**
+```bash
+gcloud compute instances create nautilus-builder \
+  --zone=us-east4-a \
+  --machine-type=e2-medium \
+  --provisioning-model=SPOT \
+  --instance-termination-action=DELETE \
+  --image-family=debian-12 \
+  --image-project=debian-cloud \
+  --boot-disk-size=30GB \
+  --project=gnw-trader
+
+# Wait for VM to be ready, then install build dependencies
+gcloud compute ssh nautilus-builder --zone=us-east4-a --project=gnw-trader --command="
+  sudo apt-get update && sudo apt-get install -y python3-venv python3-dev build-essential clang libssl-dev pkg-config
+"
+```
+
+**Step 2: Copy source and build wheel**
+```bash
+# Create tarball (exclude build artifacts)
+cd /Users/wotanvonklass/Development/nautilus_trader_private
+tar --exclude='target' --exclude='build' --exclude='.git' --exclude='*.whl' --exclude='__pycache__' -czf /tmp/nautilus_trader_private.tar.gz .
+
+# Upload to build VM
+gcloud compute scp /tmp/nautilus_trader_private.tar.gz nautilus-builder:/tmp/ --zone=us-east4-a --project=gnw-trader
+
+# Build wheel on VM (~2 hours)
+gcloud compute ssh nautilus-builder --zone=us-east4-a --project=gnw-trader --command="
+  cd /tmp && mkdir -p nautilus_trader_private && cd nautilus_trader_private
+  tar -xzf /tmp/nautilus_trader_private.tar.gz
+  python3 -m venv .venv && source .venv/bin/activate
+  pip install --upgrade pip wheel setuptools build cython numpy maturin
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  source ~/.cargo/env
+  pip wheel . --no-deps -w dist/
+"
+```
+
+**Step 3: Transfer wheel to news-trader (via HTTP, fast internal network)**
+```bash
+# Start HTTP server on builder
+gcloud compute ssh nautilus-builder --zone=us-east4-a --project=gnw-trader --command="cd /tmp/nautilus_trader_private/dist && python3 -m http.server 8888 &"
+
+# Download on news-trader (get internal IP first)
+BUILDER_IP=$(gcloud compute instances describe nautilus-builder --zone=us-east4-a --project=gnw-trader --format='get(networkInterfaces[0].networkIP)')
+gcloud compute ssh news-trader --zone=us-east4-a --project=gnw-trader --command="
+  wget -q http://${BUILDER_IP}:8888/nautilus_trader-*.whl -O /tmp/nautilus_trader.whl
+  # Rename with proper filename for pip
+  mv /tmp/nautilus_trader.whl /tmp/nautilus_trader-1.221.0-cp311-cp311-manylinux_2_36_x86_64.whl
+"
+```
+
+**Step 4: Install and restart service**
+```bash
+gcloud compute ssh news-trader --zone=us-east4-a --project=gnw-trader --command="
+  sudo systemctl stop news-trader
+  source /opt/news-trader/.venv/bin/activate
+  pip install --force-reinstall /tmp/nautilus_trader-*.whl
+  sudo systemctl start news-trader
+  sudo systemctl status news-trader
+"
+```
+
+**Step 5: Cleanup - delete builder VM**
+```bash
+gcloud compute instances delete nautilus-builder --zone=us-east4-a --project=gnw-trader --quiet
+```
+
+### Quick Reference
+
+- **Build time:** ~2 hours on e2-medium
+- **Wheel size:** ~100 MB
+- **Python version:** 3.11 (must match news-trader VM)
+- **Key changes location:** `nautilus_trader/adapters/polygon/` and `nautilus_trader/adapters/alpaca/`

@@ -335,7 +335,7 @@ class NewsTrendStrategy(Strategy):
             while not self.stop_monitoring.is_set() and check_count < max_checks:
                 try:
                     # Fetch latest price
-                    current_price = self._get_alpaca_quote()
+                    current_price = self._get_polygon_quote()
                     if current_price is None:
                         time.sleep(1)
                         check_count += 1
@@ -416,7 +416,7 @@ class NewsTrendStrategy(Strategy):
         """Fetch latest bar and update trend strength."""
         try:
             # Get latest price from Alpaca
-            current_price = self._get_alpaca_quote()
+            current_price = self._get_polygon_quote()
             if current_price is None:
                 return False
 
@@ -454,35 +454,48 @@ class NewsTrendStrategy(Strategy):
             self.log.error(f"Error updating trend: {e}")
             return False
 
-    def _get_alpaca_quote(self) -> Optional[float]:
-        """Get current bid price from Alpaca for exit pricing."""
+    def _get_polygon_quote(self) -> Optional[float]:
+        """Get current price from Polygon for exit pricing."""
         try:
-            api_key = os.environ.get('ALPACA_API_KEY')
-            secret_key = os.environ.get('ALPACA_SECRET_KEY')
-
-            if not api_key or not secret_key:
+            polygon_key = self._config.polygon_api_key
+            if not polygon_key:
+                polygon_key = os.environ.get('POLYGON_API_KEY')
+            if not polygon_key:
                 return None
 
-            url = f"https://data.alpaca.markets/v2/stocks/{self.ticker}/quotes/latest"
-            headers = {
-                'APCA-API-KEY-ID': api_key,
-                'APCA-API-SECRET-KEY': secret_key
-            }
+            # Get last trade from Polygon (most accurate current price)
+            url = f"https://api.polygon.io/v2/last/trade/{self.ticker}"
+            params = {'apiKey': polygon_key}
 
-            response = requests.get(url, headers=headers, timeout=5)
+            response = requests.get(url, params=params, timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                quote = data.get('quote', {})
-                bid_price = quote.get('bp')
-                if bid_price:
-                    return float(bid_price)
-                ask_price = quote.get('ap')
-                if ask_price:
-                    return float(ask_price)
+                results = data.get('results', {})
+                price = results.get('p')  # Last trade price
+                if price:
+                    return float(price)
+
+            # Fallback to last quote if no trade
+            quote_url = f"https://api.polygon.io/v3/quotes/{self.ticker}"
+            quote_params = {'apiKey': polygon_key, 'limit': 1, 'sort': 'timestamp', 'order': 'desc'}
+
+            quote_response = requests.get(quote_url, params=quote_params, timeout=5)
+            if quote_response.status_code == 200:
+                quote_data = quote_response.json()
+                results = quote_data.get('results', [])
+                if results:
+                    # Use bid price for sell orders
+                    bid_price = results[0].get('bid_price')
+                    if bid_price:
+                        return float(bid_price)
+                    ask_price = results[0].get('ask_price')
+                    if ask_price:
+                        return float(ask_price)
+
             return None
 
         except Exception as e:
-            self.log.error(f"Error getting Alpaca quote: {e}")
+            self.log.error(f"Error getting Polygon quote: {e}")
             return None
 
     def _check_fast_fill(self, event):
@@ -639,7 +652,7 @@ class NewsTrendStrategy(Strategy):
 
             qty = position.quantity
 
-            current_price = self._get_alpaca_quote()
+            current_price = self._get_polygon_quote()
             if not current_price:
                 last_quote = self.cache.quote_tick(self.instrument_id)
                 if last_quote:
@@ -750,7 +763,7 @@ class NewsTrendStrategy(Strategy):
 
             qty = position.quantity
 
-            current_price = self._get_alpaca_quote()
+            current_price = self._get_polygon_quote()
             if not current_price:
                 last_quote = self.cache.quote_tick(self.instrument_id)
                 if last_quote:
