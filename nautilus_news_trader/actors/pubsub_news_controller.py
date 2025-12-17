@@ -23,9 +23,39 @@ from nautilus_trader.common.config import ActorConfig
 from google.cloud import pubsub_v1
 
 
+class StrategySpec:
+    """Specification for a single strategy to spawn per news event."""
+    def __init__(
+        self,
+        name: str,
+        volume_percentage: float,
+        exit_delay_minutes: int = 7,
+        limit_order_offset_pct: float = 0.01,
+        min_position_size: float = 100.0,
+        max_position_size: float = 20000.0,
+    ):
+        self.name = name
+        self.volume_percentage = volume_percentage
+        self.exit_delay_minutes = exit_delay_minutes
+        self.limit_order_offset_pct = limit_order_offset_pct
+        self.min_position_size = min_position_size
+        self.max_position_size = max_position_size
+
+
 class PubSubNewsControllerConfig(ActorConfig, frozen=True):
     """
     Configuration for PubSubNewsController.
+
+    Multi-Strategy Support:
+    The controller can spawn multiple strategies per news event, each with
+    different parameters (volume %, exit delay, etc.). Each strategy runs
+    in isolated position space via NautilusTrader's strategy_id mechanism.
+
+    Configure multiple strategies via strategies_json environment variable:
+        STRATEGIES_JSON='[{"name":"vol5","volume_percentage":0.05},{"name":"vol10","volume_percentage":0.10}]'
+
+    Or pass strategies_json directly in config:
+        "strategies_json": '[{"name":"vol5","volume_percentage":0.05}]'
     """
     # Pub/Sub configuration
     project_id: str = "gnw-trader"
@@ -35,7 +65,7 @@ class PubSubNewsControllerConfig(ActorConfig, frozen=True):
     min_news_age_seconds: int = 2
     max_news_age_seconds: int = 30
 
-    # Trading parameters
+    # Default trading parameters (used when strategies_json is empty)
     volume_percentage: float = 0.05
     min_position_size: float = 100.0
     max_position_size: float = 20000.0
@@ -43,9 +73,9 @@ class PubSubNewsControllerConfig(ActorConfig, frozen=True):
     exit_delay_minutes: int = 7
     extended_hours: bool = True
 
-    # Parallel test mode - spawn second strategy at different volume %
-    parallel_test_mode: bool = False
-    parallel_volume_percentage: float = 0.10  # 10% for parallel test
+    # Multi-strategy configuration (JSON string)
+    # Format: '[{"name":"vol5","volume_percentage":0.05,"exit_delay_minutes":7},...]'
+    strategies_json: str = ""
 
     # Polygon API
     polygon_api_key: str = ""
@@ -65,14 +95,62 @@ class PubSubNewsController(Controller):
     3. If volume exists, spawn a strategy to trade
     """
 
-    def __init__(self, trader: Trader, config: Optional[PubSubNewsControllerConfig] = None):
+    def __init__(
+        self,
+        trader: Trader,
+        config: Optional[PubSubNewsControllerConfig] = None,
+    ):
         if config is None:
             config = PubSubNewsControllerConfig()
         super().__init__(trader, config=config)
         self._controller_config = config
 
+        # Parse strategies from JSON config or use defaults
+        self._strategies = self._parse_strategies_config(config)
+
+        # Initialize Pub/Sub subscriber
+        self._init_pubsub()
+
         self.log.info("🔧 PubSubNewsController.__init__() called")
 
+    def _parse_strategies_config(self, config: PubSubNewsControllerConfig) -> list:
+        """Parse strategies from JSON config string or create default."""
+        strategies = []
+
+        # Try to parse strategies_json if provided
+        if config.strategies_json:
+            try:
+                specs_data = json.loads(config.strategies_json)
+                for spec_dict in specs_data:
+                    strategies.append(StrategySpec(
+                        name=spec_dict.get("name", "vol"),
+                        volume_percentage=spec_dict.get("volume_percentage", 0.05),
+                        exit_delay_minutes=spec_dict.get("exit_delay_minutes", 7),
+                        limit_order_offset_pct=spec_dict.get("limit_order_offset_pct", 0.01),
+                        min_position_size=spec_dict.get("min_position_size", 100.0),
+                        max_position_size=spec_dict.get("max_position_size", 20000.0),
+                    ))
+            except json.JSONDecodeError as e:
+                self.log.error(f"❌ Invalid strategies_json: {e}")
+                # Fall through to default
+
+        # If no strategies parsed, use config defaults
+        if not strategies:
+            strategies = [
+                StrategySpec(
+                    name="vol",
+                    volume_percentage=config.volume_percentage,
+                    exit_delay_minutes=config.exit_delay_minutes,
+                    limit_order_offset_pct=config.limit_order_offset_pct,
+                    min_position_size=config.min_position_size,
+                    max_position_size=config.max_position_size,
+                )
+            ]
+
+        return strategies
+
+    def _init_pubsub(self):
+        """Initialize Pub/Sub subscriber."""
         # Initialize Pub/Sub subscriber
         self.subscriber = pubsub_v1.SubscriberClient()
         self.subscription_path = self.subscriber.subscription_path(
@@ -90,16 +168,12 @@ class PubSubNewsController(Controller):
         self.log.info("🚀 PubSubNewsController.on_start() - Starting Pub/Sub News Controller")
         self.log.info(f"📡 Subscribing to: {self.subscription_path}")
         self.log.info(f"⏰ News age filter: {self._controller_config.min_news_age_seconds}-{self._controller_config.max_news_age_seconds}s")
-        self.log.info(f"💰 Position limits: ${self._controller_config.min_position_size}-${self._controller_config.max_position_size}")
-        self.log.info(f"📊 Volume %: {self._controller_config.volume_percentage * 100}%")
-        self.log.info(f"⏱️ Exit delay: {self._controller_config.exit_delay_minutes} minutes")
         self.log.info(f"🌙 Extended hours: {self._controller_config.extended_hours}")
 
-        # Log parallel test mode
-        if self._controller_config.parallel_test_mode:
-            self.log.info(f"🔀 PARALLEL TEST MODE ENABLED - will spawn TWO strategies per news:")
-            self.log.info(f"   📊 Primary: {self._controller_config.volume_percentage * 100}% volume (news_ prefix)")
-            self.log.info(f"   📊 Parallel: {self._controller_config.parallel_volume_percentage * 100}% volume (news10_ prefix)")
+        # Log multi-strategy configuration
+        self.log.info(f"🔀 MULTI-STRATEGY MODE: {len(self._strategies)} strategies per news event")
+        for spec in self._strategies:
+            self.log.info(f"   📊 {spec.name}: {spec.volume_percentage * 100}% vol, {spec.exit_delay_minutes}min exit, ${spec.min_position_size}-${spec.max_position_size}")
 
         # Start Pub/Sub subscription in background
         self._start_pubsub_subscription()
@@ -514,14 +588,17 @@ class PubSubNewsController(Controller):
         return False
 
     def _spawn_news_trading_strategy(self, ticker: str, position_size: float, volume_data: dict, headline: str, pub_time: datetime, url: str = "", correlation_id: str = ""):
-        """Spawn a simple news trading strategy."""
-        try:
-            self.log.info(f"   🚀 [TRACE:{correlation_id}] SPAWNING NEWS TRADING STRATEGY for {ticker}")
-            self.log.info(f"      [TRACE:{correlation_id}] Position size: ${position_size:.2f}")
-            self.log.info(f"      [TRACE:{correlation_id}] Entry price: ${volume_data['last_price']:.2f}")
-            self.log.info(f"      [TRACE:{correlation_id}] Exit after: {self._controller_config.exit_delay_minutes} minutes")
+        """Spawn trading strategies for each StrategySpec in the configuration.
 
-            # Create instrument first and add to cache
+        Multi-Strategy Position Isolation:
+        Each strategy gets a unique strategy_id like "vol5_AAPL_1702819200" which
+        NautilusTrader uses to isolate positions. This means:
+        - Each strategy only sees its own position
+        - Multiple strategies can trade same ticker simultaneously
+        - Cache queries filter by strategy_id
+        """
+        try:
+            # Create instrument first and add to cache (shared by all strategies)
             from nautilus_trader.test_kit.providers import TestInstrumentProvider
             instrument = TestInstrumentProvider.equity(symbol=ticker, venue="ALPACA")
 
@@ -529,102 +606,71 @@ class PubSubNewsController(Controller):
             cache = self._trader._cache
             if not cache.instrument(instrument.id):
                 cache.add_instrument(instrument)
-                self.log.info(f"   📊 Added instrument to cache: {instrument.id}")
+                self.log.info(f"   📊 [TRACE:{correlation_id}] Added instrument to cache: {instrument.id}")
 
             # Import strategy
             from strategies.news_volume_strategy import NewsVolumeStrategy, NewsVolumeStrategyConfig
             from decimal import Decimal
 
-            # Create strategy configuration
-            strategy_id = f"news_{ticker}_{int(pub_time.timestamp())}"
-            strategy_config = NewsVolumeStrategyConfig(
-                ticker=ticker,
-                instrument_id=str(instrument.id),
-                strategy_id=strategy_id,
+            # Calculate USD volume once for all strategies
+            usd_volume = volume_data['volume'] * volume_data['avg_price']
 
-                # Trading parameters
-                position_size_usd=Decimal(str(position_size)),
-                entry_price=Decimal(str(volume_data['last_price'])),
-                limit_order_offset_pct=self._controller_config.limit_order_offset_pct,
-                exit_delay_minutes=self._controller_config.exit_delay_minutes,
-                extended_hours=self._controller_config.extended_hours,
+            self.log.info(f"   🚀 [TRACE:{correlation_id}] SPAWNING {len(self._strategies)} STRATEGIES for {ticker}")
+            self.log.info(f"      [TRACE:{correlation_id}] USD Volume: ${usd_volume:,.2f}")
+            self.log.info(f"      [TRACE:{correlation_id}] Entry price: ${volume_data['last_price']:.2f}")
 
-                # News metadata
-                news_headline=headline[:200] if headline else "",
-                publishing_date=pub_time.isoformat(),
-                news_url=url,
-                correlation_id=correlation_id,
-            )
+            # Spawn a strategy for each StrategySpec
+            for spec in self._strategies:
+                # Calculate position size for this strategy's volume percentage
+                spec_position_size = usd_volume * spec.volume_percentage
 
-            # Create strategy instance
-            strategy = NewsVolumeStrategy(config=strategy_config)
+                # Apply limits
+                if spec_position_size < spec.min_position_size:
+                    self.log.info(f"      [TRACE:{correlation_id}] {spec.name}: Skip - ${spec_position_size:.2f} < min ${spec.min_position_size}")
+                    continue
 
-            # Add to trader
-            self._trader.add_strategy(strategy)
+                if spec_position_size > spec.max_position_size:
+                    self.log.info(f"      [TRACE:{correlation_id}] {spec.name}: Cap ${spec_position_size:.2f} → ${spec.max_position_size}")
+                    spec_position_size = spec.max_position_size
 
-            # Start the strategy (using trader.start_strategy, not strategy.start)
-            self._trader.start_strategy(strategy.id)
+                spec_correlation_id = f"{correlation_id}_{spec.name}"
 
-            self.log.info(f"   ✅ [TRACE:{correlation_id}] Strategy started successfully: {strategy_id}")
+                # Create unique strategy_id: {spec_name}_{ticker}_{timestamp}
+                # This ensures position isolation in NautilusTrader
+                strategy_id = f"{spec.name}_{ticker}_{int(pub_time.timestamp())}"
 
-            # PARALLEL TEST MODE: Spawn a second strategy at different volume %
-            if self._controller_config.parallel_test_mode:
-                self._spawn_parallel_strategy(ticker, volume_data, headline, pub_time, url, correlation_id, instrument)
+                strategy_config = NewsVolumeStrategyConfig(
+                    ticker=ticker,
+                    instrument_id=str(instrument.id),
+                    strategy_id=strategy_id,
+
+                    # Trading parameters from StrategySpec
+                    position_size_usd=Decimal(str(spec_position_size)),
+                    entry_price=Decimal(str(volume_data['last_price'])),
+                    limit_order_offset_pct=spec.limit_order_offset_pct,
+                    exit_delay_minutes=spec.exit_delay_minutes,
+                    extended_hours=self._controller_config.extended_hours,
+
+                    # News metadata
+                    news_headline=f"[{spec.name}] {headline[:190]}" if headline else f"[{spec.name}]",
+                    publishing_date=pub_time.isoformat(),
+                    news_url=url,
+                    correlation_id=spec_correlation_id,
+                )
+
+                # Create strategy instance
+                strategy = NewsVolumeStrategy(config=strategy_config)
+
+                # Add to trader
+                self._trader.add_strategy(strategy)
+
+                # Start the strategy
+                self._trader.start_strategy(strategy.id)
+
+                self.log.info(f"      ✅ [TRACE:{spec_correlation_id}] {spec.name} started: ${spec_position_size:.2f}, {spec.exit_delay_minutes}min exit")
 
         except Exception as e:
             self.log.error(f"   ❌ Failed to spawn strategy: {e}")
-            import traceback
-            self.log.error(f"Traceback: {traceback.format_exc()}")
-
-    def _spawn_parallel_strategy(self, ticker: str, volume_data: dict, headline: str, pub_time: datetime, url: str, correlation_id: str, instrument):
-        """Spawn a parallel strategy at 10% volume for testing parallel execution."""
-        try:
-            from strategies.news_volume_strategy import NewsVolumeStrategy, NewsVolumeStrategyConfig
-            from decimal import Decimal
-
-            # Calculate position size at parallel volume percentage (10%)
-            usd_volume = volume_data['volume'] * volume_data['avg_price']
-            parallel_position_size = usd_volume * self._controller_config.parallel_volume_percentage
-
-            # Apply same limits
-            if parallel_position_size < self._controller_config.min_position_size:
-                self.log.info(f"   ⏭️  [TRACE:{correlation_id}] Parallel strategy skip - position ${parallel_position_size:.2f} < min")
-                return
-
-            if parallel_position_size > self._controller_config.max_position_size:
-                parallel_position_size = self._controller_config.max_position_size
-
-            parallel_correlation_id = f"{correlation_id}_10pct"
-            self.log.info(f"   🔀 [TRACE:{parallel_correlation_id}] SPAWNING PARALLEL 10% STRATEGY for {ticker}")
-            self.log.info(f"      [TRACE:{parallel_correlation_id}] Position size: ${parallel_position_size:.2f}")
-
-            # Create parallel strategy with news10_ prefix
-            parallel_strategy_id = f"news10_{ticker}_{int(pub_time.timestamp())}"
-            parallel_config = NewsVolumeStrategyConfig(
-                ticker=ticker,
-                instrument_id=str(instrument.id),
-                strategy_id=parallel_strategy_id,
-
-                position_size_usd=Decimal(str(parallel_position_size)),
-                entry_price=Decimal(str(volume_data['last_price'])),
-                limit_order_offset_pct=self._controller_config.limit_order_offset_pct,
-                exit_delay_minutes=self._controller_config.exit_delay_minutes,
-                extended_hours=self._controller_config.extended_hours,
-
-                news_headline=f"[10%] {headline[:190]}" if headline else "[10%]",
-                publishing_date=pub_time.isoformat(),
-                news_url=url,
-                correlation_id=parallel_correlation_id,
-            )
-
-            parallel_strategy = NewsVolumeStrategy(config=parallel_config)
-            self._trader.add_strategy(parallel_strategy)
-            self._trader.start_strategy(parallel_strategy.id)
-
-            self.log.info(f"   ✅ [TRACE:{parallel_correlation_id}] Parallel 10% strategy started: {parallel_strategy_id}")
-
-        except Exception as e:
-            self.log.error(f"   ❌ Failed to spawn parallel strategy: {e}")
             import traceback
             self.log.error(f"Traceback: {traceback.format_exc()}")
 

@@ -207,6 +207,23 @@ def main():
     logger.info(f"🔌 Polygon proxy: {polygon_proxy_url}")
     logger.info("")
 
+    # Build strategies JSON from environment or use default
+    # Format: '[{"name":"vol5","volume_percentage":0.05,"exit_delay_minutes":7},...]'
+    strategies_json = os.getenv("STRATEGIES_JSON", "")
+    if not strategies_json:
+        # Default: single strategy using legacy env vars for backward compatibility
+        strategies_json = '[{"name":"vol","volume_percentage":' + os.getenv("VOLUME_PERCENTAGE", "0.05") + ',"exit_delay_minutes":' + os.getenv("EXIT_DELAY_MINUTES", "7") + ',"min_position_size":' + os.getenv("MIN_POSITION_SIZE", "100") + ',"max_position_size":' + os.getenv("MAX_POSITION_SIZE", "20000") + ',"limit_order_offset_pct":' + os.getenv("LIMIT_ORDER_OFFSET_PCT", "0.01") + '}]'
+
+    # Log strategies configuration
+    import json
+    try:
+        strategies_list = json.loads(strategies_json)
+        logger.info(f"📊 Strategies configured: {len(strategies_list)}")
+        for s in strategies_list:
+            logger.info(f"   • {s.get('name', 'vol')}: {s.get('volume_percentage', 0.05)*100}% vol, {s.get('exit_delay_minutes', 7)}min exit")
+    except json.JSONDecodeError:
+        logger.warning(f"⚠️ Invalid STRATEGIES_JSON, using default single strategy")
+
     # Create controller configuration
     controller_config = ImportableControllerConfig(
         controller_path="actors.pubsub_news_controller:PubSubNewsController",
@@ -220,7 +237,7 @@ def main():
             "min_news_age_seconds": int(os.getenv("MIN_NEWS_AGE_SECONDS", 2)),
             "max_news_age_seconds": int(os.getenv("MAX_NEWS_AGE_SECONDS", 30)),
 
-            # Trading parameters
+            # Default trading parameters (used when strategies_json is empty)
             "volume_percentage": float(os.getenv("VOLUME_PERCENTAGE", 0.05)),
             "min_position_size": float(os.getenv("MIN_POSITION_SIZE", 100)),
             "max_position_size": float(os.getenv("MAX_POSITION_SIZE", 20000)),
@@ -228,9 +245,8 @@ def main():
             "exit_delay_minutes": int(os.getenv("EXIT_DELAY_MINUTES", 7)),
             "extended_hours": os.getenv("EXTENDED_HOURS", "true").lower() == "true",
 
-            # Parallel test mode - spawn two strategies per news (5% + 10%)
-            "parallel_test_mode": os.getenv("PARALLEL_TEST_MODE", "false").lower() == "true",
-            "parallel_volume_percentage": float(os.getenv("PARALLEL_VOLUME_PERCENTAGE", 0.10)),
+            # Multi-strategy configuration (JSON string)
+            "strategies_json": strategies_json,
 
             # Polygon API key (for REST API calls)
             "polygon_api_key": polygon_api_key,
