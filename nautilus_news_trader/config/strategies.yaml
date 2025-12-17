@@ -19,17 +19,16 @@ strategies:
     min_position_size: 100
     max_position_size: 20000
 
-  # Uncomment to add more strategies:
-  # - name: vol10
-  #   volume_percentage: 0.10
-  #   exit_delay_minutes: 5
-  #   limit_order_offset_pct: 0.01
-  #   min_position_size: 100
-  #   max_position_size: 20000
-  #
-  # - name: quick3
-  #   volume_percentage: 0.03
-  #   exit_delay_minutes: 3
-  #   limit_order_offset_pct: 0.005
-  #   min_position_size: 50
-  #   max_position_size: 10000
+  - name: vol10
+    volume_percentage: 0.10
+    exit_delay_minutes: 5
+    limit_order_offset_pct: 0.01
+    min_position_size: 100
+    max_position_size: 20000
+
+  - name: quick3
+    volume_percentage: 0.03
+    exit_delay_minutes: 3
+    limit_order_offset_pct: 0.005
+    min_position_size: 50
+    max_position_size: 10000
