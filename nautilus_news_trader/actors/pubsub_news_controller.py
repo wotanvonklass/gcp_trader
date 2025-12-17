@@ -7,7 +7,9 @@ trading strategies for each qualifying news event.
 """
 
 import sys
+import os
 import json
+import yaml
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set
@@ -51,11 +53,19 @@ class PubSubNewsControllerConfig(ActorConfig, frozen=True):
     different parameters (volume %, exit delay, etc.). Each strategy runs
     in isolated position space via NautilusTrader's strategy_id mechanism.
 
-    Configure multiple strategies via strategies_json environment variable:
-        STRATEGIES_JSON='[{"name":"vol5","volume_percentage":0.05},{"name":"vol10","volume_percentage":0.10}]'
+    Configuration priority (first found wins):
+    1. YAML file: config/strategies.yaml (recommended)
+    2. Environment variable: STRATEGIES_JSON='[{"name":"vol5",...}]'
+    3. Default: single strategy with config.volume_percentage
 
-    Or pass strategies_json directly in config:
-        "strategies_json": '[{"name":"vol5","volume_percentage":0.05}]'
+    Example strategies.yaml:
+        strategies:
+          - name: vol5
+            volume_percentage: 0.05
+            exit_delay_minutes: 7
+          - name: vol10
+            volume_percentage: 0.10
+            exit_delay_minutes: 5
     """
     # Pub/Sub configuration
     project_id: str = "gnw-trader"
@@ -114,10 +124,43 @@ class PubSubNewsController(Controller):
         self.log.info("🔧 PubSubNewsController.__init__() called")
 
     def _parse_strategies_config(self, config: PubSubNewsControllerConfig) -> list:
-        """Parse strategies from JSON config string or create default."""
+        """Parse strategies from YAML file, JSON env var, or create default.
+
+        Priority:
+        1. YAML file: config/strategies.yaml
+        2. JSON env var: STRATEGIES_JSON
+        3. Default: single strategy with config values
+        """
         strategies = []
 
-        # Try to parse strategies_json if provided
+        # 1. Try YAML config file first
+        yaml_paths = [
+            Path("/opt/news-trader/config/strategies.yaml"),  # Production
+            Path(__file__).parent.parent / "config" / "strategies.yaml",  # Local dev
+        ]
+
+        for yaml_path in yaml_paths:
+            if yaml_path.exists():
+                try:
+                    with open(yaml_path) as f:
+                        yaml_config = yaml.safe_load(f)
+
+                    if yaml_config and 'strategies' in yaml_config:
+                        for spec_dict in yaml_config['strategies']:
+                            strategies.append(StrategySpec(
+                                name=spec_dict.get("name", "vol"),
+                                volume_percentage=spec_dict.get("volume_percentage", 0.05),
+                                exit_delay_minutes=spec_dict.get("exit_delay_minutes", 7),
+                                limit_order_offset_pct=spec_dict.get("limit_order_offset_pct", 0.01),
+                                min_position_size=spec_dict.get("min_position_size", 100.0),
+                                max_position_size=spec_dict.get("max_position_size", 20000.0),
+                            ))
+                        self.log.info(f"📄 Loaded {len(strategies)} strategies from {yaml_path}")
+                        return strategies
+                except Exception as e:
+                    self.log.error(f"❌ Failed to parse {yaml_path}: {e}")
+
+        # 2. Try JSON env var / config
         if config.strategies_json:
             try:
                 specs_data = json.loads(config.strategies_json)
@@ -130,22 +173,23 @@ class PubSubNewsController(Controller):
                         min_position_size=spec_dict.get("min_position_size", 100.0),
                         max_position_size=spec_dict.get("max_position_size", 20000.0),
                     ))
+                self.log.info(f"📋 Loaded {len(strategies)} strategies from STRATEGIES_JSON")
+                return strategies
             except json.JSONDecodeError as e:
                 self.log.error(f"❌ Invalid strategies_json: {e}")
-                # Fall through to default
 
-        # If no strategies parsed, use config defaults
-        if not strategies:
-            strategies = [
-                StrategySpec(
-                    name="vol",
-                    volume_percentage=config.volume_percentage,
-                    exit_delay_minutes=config.exit_delay_minutes,
-                    limit_order_offset_pct=config.limit_order_offset_pct,
-                    min_position_size=config.min_position_size,
-                    max_position_size=config.max_position_size,
-                )
-            ]
+        # 3. Default: single strategy from config values
+        strategies = [
+            StrategySpec(
+                name="vol",
+                volume_percentage=config.volume_percentage,
+                exit_delay_minutes=config.exit_delay_minutes,
+                limit_order_offset_pct=config.limit_order_offset_pct,
+                min_position_size=config.min_position_size,
+                max_position_size=config.max_position_size,
+            )
+        ]
+        self.log.info(f"📊 Using default strategy config: {config.volume_percentage*100:.0f}% vol")
 
         return strategies
 
