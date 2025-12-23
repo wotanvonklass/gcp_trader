@@ -27,6 +27,9 @@ pub struct Config {
 
     /// Log level (trace, debug, info, warn, error)
     pub log_level: String,
+
+    /// Enable fake data generation for testing
+    pub enable_fake_data: bool,
 }
 
 impl Config {
@@ -67,6 +70,10 @@ impl Config {
         let log_level = env::var("LOG_LEVEL")
             .unwrap_or_else(|_| "info".to_string());
 
+        let enable_fake_data = env::var("ENABLE_FAKE_DATA")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
         Ok(Config {
             firehose_url,
             polygon_api_key,
@@ -76,6 +83,7 @@ impl Config {
             timer_interval_ms,
             bar_delay_ms,
             log_level,
+            enable_fake_data,
         })
     }
 

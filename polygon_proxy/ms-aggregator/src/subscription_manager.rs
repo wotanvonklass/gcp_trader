@@ -1,4 +1,5 @@
 use crate::bar_aggregator::BarAggregator;
+use crate::trade_buffer::TradeBuffer;
 use crate::types::{BarKey, MsBar, PolygonTrade, parse_ms_subscription};
 use dashmap::DashMap;
 use std::collections::HashSet;
@@ -22,6 +23,9 @@ pub struct SubscriptionManager {
     /// Wildcard subscriptions (clientId -> set of intervals for "*")
     wildcard_subscriptions: Arc<DashMap<ClientId, HashSet<u64>>>,
 
+    /// Rolling trade buffer for all symbols (60 seconds)
+    trade_buffer: Arc<TradeBuffer>,
+
     /// Bar emission delay in milliseconds
     bar_delay_ms: u64,
 
@@ -37,10 +41,21 @@ impl SubscriptionManager {
             client_subscriptions: Arc::new(DashMap::new()),
             key_to_clients: Arc::new(DashMap::new()),
             wildcard_subscriptions: Arc::new(DashMap::new()),
+            trade_buffer: Arc::new(TradeBuffer::new()),
             bar_delay_ms,
             min_interval_ms,
             max_interval_ms,
         }
+    }
+
+    /// Get reference to the trade buffer
+    pub fn trade_buffer(&self) -> &TradeBuffer {
+        &self.trade_buffer
+    }
+
+    /// Generate bars from buffered trades for a symbol since a given timestamp
+    pub fn generate_bars_since(&self, symbol: &str, interval_ms: u64, since_ms: u64) -> Vec<MsBar> {
+        self.trade_buffer.generate_bars_since(symbol, interval_ms, since_ms)
     }
 
     /// Subscribe a client to one or more bar intervals
@@ -189,7 +204,10 @@ impl SubscriptionManager {
 
     /// Process a trade and update relevant aggregators
     pub fn process_trade(&self, trade: &PolygonTrade) {
-        // Early exit: if no aggregators exist, skip processing entirely
+        // Always store in buffer (for historical replay)
+        self.trade_buffer.store(trade);
+
+        // Early exit: if no aggregators exist, skip further processing
         if self.aggregators.is_empty() {
             return;
         }
@@ -216,7 +234,7 @@ impl SubscriptionManager {
         // Update each matching aggregator
         for key in matching_keys {
             if let Some(mut agg) = self.aggregators.get_mut(&key) {
-                info!(
+                debug!(
                     "Processing {} trade: ${} @ {} size={}",
                     trade.symbol, trade.price, trade.timestamp, trade.size
                 );
@@ -276,11 +294,19 @@ impl SubscriptionManager {
 
     /// Get statistics about current state
     pub fn stats(&self) -> SubscriptionStats {
+        let buffer_stats = self.trade_buffer.stats();
         SubscriptionStats {
             num_aggregators: self.aggregators.len(),
             num_clients: self.client_subscriptions.len(),
             num_wildcard_clients: self.wildcard_subscriptions.len(),
+            buffer_symbols: buffer_stats.num_symbols,
+            buffer_trades: buffer_stats.total_trades,
         }
+    }
+
+    /// Prune old trades from the buffer (call periodically)
+    pub fn prune_buffer(&self) {
+        self.trade_buffer.prune_all();
     }
 }
 
@@ -289,6 +315,8 @@ pub struct SubscriptionStats {
     pub num_aggregators: usize,
     pub num_clients: usize,
     pub num_wildcard_clients: usize,
+    pub buffer_symbols: usize,
+    pub buffer_trades: usize,
 }
 
 #[cfg(test)]

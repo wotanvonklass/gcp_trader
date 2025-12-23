@@ -1,0 +1,36 @@
+# Secrets and local config
+.env
+.env.*
+.mcp.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Data and databases
+*.db
+nautilus_news_trader/data/
+
+# Build artifacts
+*.tar.gz
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+web/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Rust
+target/
+
+# OS
+.DS_Store

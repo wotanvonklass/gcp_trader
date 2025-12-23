@@ -5,14 +5,17 @@
 #
 # Strategy parameters:
 #   name: Unique identifier (used in strategy_id and logs)
+#   strategy_type: "volume" (fixed time exit) or "trend" (EMA-based exit)
 #   volume_percentage: Fraction of 3-second USD volume to trade (0.05 = 5%)
-#   exit_delay_minutes: Minutes to hold position before exit
+#   exit_delay_minutes: Minutes to hold position before exit (volume type only)
 #   limit_order_offset_pct: Limit price offset from last trade (0.01 = 1%)
 #   min_position_size: Minimum USD position (skip if below)
 #   max_position_size: Maximum USD position (cap if above)
 
 strategies:
+  # Volume-based strategies (fixed time exit)
   - name: vol5
+    strategy_type: volume
     volume_percentage: 0.05
     exit_delay_minutes: 7
     limit_order_offset_pct: 0.01
@@ -20,6 +23,7 @@ strategies:
     max_position_size: 20000
 
   - name: vol10
+    strategy_type: volume
     volume_percentage: 0.10
     exit_delay_minutes: 5
     limit_order_offset_pct: 0.01
@@ -27,8 +31,17 @@ strategies:
     max_position_size: 20000
 
   - name: quick3
+    strategy_type: volume
     volume_percentage: 0.03
     exit_delay_minutes: 3
     limit_order_offset_pct: 0.005
     min_position_size: 50
     max_position_size: 10000
+
+  # Trend-based strategy (EMA exit when trend_strength < 64)
+  - name: trend5
+    strategy_type: trend
+    volume_percentage: 0.05
+    limit_order_offset_pct: 0.01
+    min_position_size: 100
+    max_position_size: 20000

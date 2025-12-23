@@ -90,6 +90,9 @@ pub struct MsBar {
 pub struct SubscriptionMessage {
     pub action: String,
     pub params: String,
+    /// Optional timestamp (ms) to replay buffered bars from
+    #[serde(default)]
+    pub since: Option<u64>,
 }
 
 /// Authentication message

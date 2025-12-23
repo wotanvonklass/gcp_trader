@@ -1,6 +1,7 @@
 mod bar_aggregator;
 mod config;
 mod subscription_manager;
+mod trade_buffer;
 mod types;
 mod upstream;
 
@@ -57,13 +58,48 @@ async fn main() -> Result<()> {
     // Note: Most trades will be filtered out by early-exit in process_trade()
     let (trade_tx, mut trade_rx) = mpsc::channel::<PolygonTrade>(100000);
 
-    // Start upstream connection to firehose
-    let upstream = upstream::UpstreamConnection::new(config.clone(), trade_tx);
-    let upstream_handle = tokio::spawn(async move {
-        if let Err(e) = upstream.run().await {
-            error!("Upstream connection failed: {}", e);
-        }
-    });
+    // Start upstream connection to firehose (or fake data generator for testing)
+    let upstream_handle = if config.enable_fake_data {
+        info!("🧪 FAKE DATA MODE: Generating test trades for FAKETICKER");
+        let trade_tx_clone = trade_tx.clone();
+        tokio::spawn(async move {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(50));
+            let mut price = 100.0_f64;
+
+            loop {
+                interval.tick().await;
+
+                // Random walk price
+                let change = (rand::random::<f64>() - 0.5) * 0.5;
+                price = (price + change).max(90.0).min(110.0);
+
+                let now_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64;
+
+                let trade = PolygonTrade {
+                    symbol: "FAKETICKER".to_string(),
+                    price,
+                    size: 100,
+                    timestamp: now_ms,
+                    extra: serde_json::Value::Null,
+                };
+
+                if trade_tx_clone.send(trade).await.is_err() {
+                    break;
+                }
+            }
+        })
+    } else {
+        let upstream = upstream::UpstreamConnection::new(config.clone(), trade_tx);
+        tokio::spawn(async move {
+            if let Err(e) = upstream.run().await {
+                error!("Upstream connection failed: {}", e);
+            }
+        })
+    };
 
     // Start trade processor task
     let subscription_manager_clone = subscription_manager.clone();
@@ -81,9 +117,13 @@ async fn main() -> Result<()> {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
             timer_interval_ms,
         ));
+        let mut tick_count: u64 = 0;
+        // Prune every 10 seconds (10000ms / timer_interval_ms ticks)
+        let prune_interval = 10000 / timer_interval_ms;
 
         loop {
             interval.tick().await;
+            tick_count += 1;
 
             // Check all aggregators and emit ready bars
             let bars = subscription_manager_clone.check_and_emit_bars();
@@ -97,12 +137,15 @@ async fn main() -> Result<()> {
                 }
             }
 
-            // Periodically log stats
-            if interval.period().as_millis() as u64 % 10000 < timer_interval_ms {
+            // Periodically prune old trades from buffer and log stats (every 10 seconds)
+            if tick_count % prune_interval == 0 {
+                subscription_manager_clone.prune_buffer();
+
                 let stats = subscription_manager_clone.stats();
                 info!(
-                    "Stats: {} aggregators, {} clients, {} wildcard clients",
-                    stats.num_aggregators, stats.num_clients, stats.num_wildcard_clients
+                    "Stats: {} aggregators, {} clients, buffer: {} symbols, {} trades",
+                    stats.num_aggregators, stats.num_clients,
+                    stats.buffer_symbols, stats.buffer_trades
                 );
             }
         }
@@ -240,10 +283,36 @@ async fn handle_client_connection(
                                     match subscription_manager.subscribe(client_id, &sub.params) {
                                         Ok(subscribed) => {
                                             info!(
-                                                "Client {} subscribed to: {}",
+                                                "Client {} subscribed to: {}{}",
                                                 client_id,
-                                                subscribed.join(", ")
+                                                subscribed.join(", "),
+                                                sub.since.map(|s| format!(" (since={})", s)).unwrap_or_default()
                                             );
+
+                                            // If 'since' provided, replay buffered bars
+                                            if let Some(since_ms) = sub.since {
+                                                if let Some(sender) = client_senders.get(&client_id) {
+                                                    for sub_str in &subscribed {
+                                                        if let Some(bar_sub) = types::parse_ms_subscription(sub_str) {
+                                                            let bars = subscription_manager.generate_bars_since(
+                                                                &bar_sub.symbol,
+                                                                bar_sub.interval_ms,
+                                                                since_ms,
+                                                            );
+                                                            if !bars.is_empty() {
+                                                                info!(
+                                                                    "Replaying {} buffered bars for {}.{}Ms",
+                                                                    bars.len(), bar_sub.symbol, bar_sub.interval_ms
+                                                                );
+                                                                // Send each bar to the client
+                                                                for bar in bars {
+                                                                    let _ = sender.send(bar).await;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                         Err(e) => {
                                             warn!("Client {} subscription error: {}", client_id, e);

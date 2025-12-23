@@ -8,6 +8,10 @@ pytz>=2023.3
 numpy>=1.24.0
 pandas>=2.0.0
 
+# API server
+fastapi>=0.109.0
+uvicorn>=0.27.0
+
 # NautilusTrader (private fork with Alpaca execution adapters)
 # Installed from source: /opt/nautilus_trader_private
 # Build command: cd /opt/nautilus_trader_private && make install

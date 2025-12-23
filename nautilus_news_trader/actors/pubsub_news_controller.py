@@ -16,6 +16,30 @@ from typing import Optional, Set
 from concurrent.futures import TimeoutError
 import asyncio
 
+# Import trade database
+try:
+    from shared.trade_db import get_trade_db
+except ImportError:
+    # Fallback for different import contexts
+    try:
+        from nautilus_news_trader.shared.trade_db import get_trade_db
+    except ImportError:
+        get_trade_db = None
+
+# Import event emitter for real-time monitoring
+try:
+    from utils.event_emitter import (
+        emit_news_received,
+        emit_news_decision,
+        emit_strategy_spawned,
+    )
+    EVENT_EMITTER_AVAILABLE = True
+except ImportError:
+    EVENT_EMITTER_AVAILABLE = False
+    def emit_news_received(*args, **kwargs): pass
+    def emit_news_decision(*args, **kwargs): pass
+    def emit_strategy_spawned(*args, **kwargs): pass
+
 # Import NautilusTrader components
 from nautilus_trader.trading.controller import Controller
 from nautilus_trader.trading.trader import Trader
@@ -35,6 +59,7 @@ class StrategySpec:
         limit_order_offset_pct: float = 0.01,
         min_position_size: float = 100.0,
         max_position_size: float = 20000.0,
+        strategy_type: str = "volume",  # "volume" or "trend"
     ):
         self.name = name
         self.volume_percentage = volume_percentage
@@ -42,6 +67,7 @@ class StrategySpec:
         self.limit_order_offset_pct = limit_order_offset_pct
         self.min_position_size = min_position_size
         self.max_position_size = max_position_size
+        self.strategy_type = strategy_type
 
 
 class PubSubNewsControllerConfig(ActorConfig, frozen=True):
@@ -121,6 +147,15 @@ class PubSubNewsController(Controller):
         # Initialize Pub/Sub subscriber
         self._init_pubsub()
 
+        # Initialize trade database
+        self._trade_db = None
+        if get_trade_db is not None:
+            try:
+                self._trade_db = get_trade_db()
+                self.log.info("📊 Trade database initialized")
+            except Exception as e:
+                self.log.warning(f"⚠️ Trade database not available: {e}")
+
         self.log.info("🔧 PubSubNewsController.__init__() called")
 
     def _parse_strategies_config(self, config: PubSubNewsControllerConfig) -> list:
@@ -154,6 +189,7 @@ class PubSubNewsController(Controller):
                                 limit_order_offset_pct=spec_dict.get("limit_order_offset_pct", 0.01),
                                 min_position_size=spec_dict.get("min_position_size", 100.0),
                                 max_position_size=spec_dict.get("max_position_size", 20000.0),
+                                strategy_type=spec_dict.get("strategy_type", "volume"),
                             ))
                         self.log.info(f"📄 Loaded {len(strategies)} strategies from {yaml_path}")
                         return strategies
@@ -217,7 +253,8 @@ class PubSubNewsController(Controller):
         # Log multi-strategy configuration
         self.log.info(f"🔀 MULTI-STRATEGY MODE: {len(self._strategies)} strategies per news event")
         for spec in self._strategies:
-            self.log.info(f"   📊 {spec.name}: {spec.volume_percentage * 100}% vol, {spec.exit_delay_minutes}min exit, ${spec.min_position_size}-${spec.max_position_size}")
+            exit_info = "trend-exit" if spec.strategy_type == "trend" else f"{spec.exit_delay_minutes}min exit"
+            self.log.info(f"   📊 {spec.name} ({spec.strategy_type}): {spec.volume_percentage * 100}% vol, {exit_info}, ${spec.min_position_size}-${spec.max_position_size}")
 
         # Start Pub/Sub subscription in background
         self._start_pubsub_subscription()
@@ -323,6 +360,17 @@ class PubSubNewsController(Controller):
 
             self.log.info(f"📰 [TRACE:{trace_id}] Received news #{self.message_count}{age_str}: {headline}")
 
+            # Emit news received event to News API
+            tickers = news_data.get('tickers', [])
+            emit_news_received(
+                news_id=news_id or trace_id,
+                headline=headline,
+                tickers=tickers,
+                source=news_data.get('source', 'Benzinga'),
+                pub_time=pub_time_str or '',
+                news_age_ms=int(age_ms) if age_ms else 0,
+            )
+
             # Process news event
             self._process_news_event(news_data)
 
@@ -367,13 +415,47 @@ class PubSubNewsController(Controller):
                            news_data.get('updatedAt') or
                            news_data.get('capturedAt'))
 
+            # Parse captured_at for database storage
+            captured_at_str = news_data.get('capturedAt')
+            captured_at = None
+            if captured_at_str:
+                try:
+                    captured_at = datetime.fromisoformat(captured_at_str.replace('Z', '+00:00'))
+                except:
+                    pass
+
+            # Store news event in database (initial insert)
+            if self._trade_db and news_id:
+                pub_time_for_db = None
+                if pub_time_str:
+                    try:
+                        pub_time_for_db = datetime.fromisoformat(pub_time_str.replace('Z', '+00:00'))
+                    except:
+                        pass
+                self._trade_db.insert_news_event(
+                    news_id=news_id,
+                    headline=headline,
+                    tickers=tickers,
+                    url=url,
+                    source=news_data.get('source', ''),
+                    tags=news_data.get('tags', []),
+                    pub_time=pub_time_for_db,
+                    captured_at=captured_at,
+                )
+
             if not tickers:
                 self.log.info(f"⏭️  [TRACE:{correlation_id}] No tickers in news: {headline}")
                 self.log.info(f"   [TRACE:{correlation_id}] URL: {url}")
+                if self._trade_db and news_id:
+                    self._trade_db.update_news_decision(news_id, 'skip_no_tickers')
+                emit_news_decision(news_id=news_id, decision='skip', skip_reason='no_tickers')
                 return
 
             if not pub_time_str:
                 self.log.info(f"⏭️  [TRACE:{correlation_id}] No timestamp found in news data")
+                if self._trade_db and news_id:
+                    self._trade_db.update_news_decision(news_id, 'skip_no_timestamp')
+                emit_news_decision(news_id=news_id, decision='skip', skip_reason='no_timestamp')
                 return
 
             # Parse publication time
@@ -393,6 +475,9 @@ class PubSubNewsController(Controller):
 
             if age_seconds > self._controller_config.max_news_age_seconds:
                 self.log.info(f"⏭️  [TRACE:{correlation_id}] News too old: {age_seconds:.1f}s > {self._controller_config.max_news_age_seconds}s")
+                if self._trade_db and news_id:
+                    self._trade_db.update_news_decision(news_id, 'skip_too_old')
+                emit_news_decision(news_id=news_id, decision='skip', skip_reason='too_old')
                 return
 
             # Process each ticker
@@ -403,6 +488,9 @@ class PubSubNewsController(Controller):
                 # Check if already has position or strategy for this ticker
                 if self._has_position_or_strategy(symbol):
                     self.log.info(f"⏭️  [TRACE:{correlation_id}] Skipping {symbol} - already has position/strategy")
+                    if self._trade_db and news_id:
+                        self._trade_db.update_news_decision(news_id, 'skip_position_exists')
+                    emit_news_decision(news_id=news_id, decision='skip', skip_reason='position_exists')
                     continue
 
                 # For test news (with [TEST] in headline), skip Polygon check and use mock data
@@ -429,6 +517,9 @@ class PubSubNewsController(Controller):
 
                     if not volume_data:
                         self.log.info(f"⏭️  [TRACE:{correlation_id}] DECISION: Skip {symbol} - no trading activity in last 3s")
+                        if self._trade_db and news_id:
+                            self._trade_db.update_news_decision(news_id, 'skip_no_volume')
+                        emit_news_decision(news_id=news_id, decision='skip', skip_reason='no_volume')
                         continue
 
                 self.log.info(f"✅ [TRACE:{correlation_id}] Trading detected: {volume_data['volume']:,.0f} shares @ ${volume_data['last_price']:.2f}")
@@ -439,8 +530,25 @@ class PubSubNewsController(Controller):
                 if position_size == 0:
                     continue
 
+                # Update news decision to 'trade' with polygon data
+                if self._trade_db and news_id:
+                    self._trade_db.update_news_decision(
+                        news_id=news_id,
+                        decision='trade',
+                        polygon_volume=int(volume_data['volume']),
+                        polygon_price=volume_data['last_price'],
+                        polygon_bars=volume_data['bars_count'],
+                    )
+
+                # Emit trade decision event
+                emit_news_decision(
+                    news_id=news_id,
+                    decision='trade',
+                    volume_found=volume_data['volume'],
+                )
+
                 # Spawn strategy for this ticker
-                self._spawn_news_trading_strategy(symbol, position_size, volume_data, headline, pub_time, url, correlation_id)
+                self._spawn_news_trading_strategy(symbol, position_size, volume_data, headline, pub_time, url, correlation_id, news_id)
 
         except Exception as e:
             self.log.error(f"❌ Error processing news event: {e}")
@@ -631,7 +739,7 @@ class PubSubNewsController(Controller):
 
         return False
 
-    def _spawn_news_trading_strategy(self, ticker: str, position_size: float, volume_data: dict, headline: str, pub_time: datetime, url: str = "", correlation_id: str = ""):
+    def _spawn_news_trading_strategy(self, ticker: str, position_size: float, volume_data: dict, headline: str, pub_time: datetime, url: str = "", correlation_id: str = "", news_id: str = ""):
         """Spawn trading strategies for each StrategySpec in the configuration.
 
         Multi-Strategy Position Isolation:
@@ -652,8 +760,9 @@ class PubSubNewsController(Controller):
                 cache.add_instrument(instrument)
                 self.log.info(f"   📊 [TRACE:{correlation_id}] Added instrument to cache: {instrument.id}")
 
-            # Import strategy
+            # Import strategies
             from strategies.news_volume_strategy import NewsVolumeStrategy, NewsVolumeStrategyConfig
+            from strategies.news_trend_strategy import NewsTrendStrategy, NewsTrendStrategyConfig
             from decimal import Decimal
 
             # Calculate USD volume once for all strategies
@@ -683,27 +792,52 @@ class PubSubNewsController(Controller):
                 # This ensures position isolation in NautilusTrader
                 strategy_id = f"{spec.name}_{ticker}_{int(pub_time.timestamp())}"
 
-                strategy_config = NewsVolumeStrategyConfig(
-                    ticker=ticker,
-                    instrument_id=str(instrument.id),
-                    strategy_id=strategy_id,
+                # Create strategy based on type
+                if spec.strategy_type == "trend":
+                    # Trend-based strategy (EMA exit)
+                    strategy_config = NewsTrendStrategyConfig(
+                        ticker=ticker,
+                        instrument_id=str(instrument.id),
+                        strategy_id=strategy_id,
 
-                    # Trading parameters from StrategySpec
-                    position_size_usd=Decimal(str(spec_position_size)),
-                    entry_price=Decimal(str(volume_data['last_price'])),
-                    limit_order_offset_pct=spec.limit_order_offset_pct,
-                    exit_delay_minutes=spec.exit_delay_minutes,
-                    extended_hours=self._controller_config.extended_hours,
+                        # Trading parameters from StrategySpec
+                        position_size_usd=Decimal(str(spec_position_size)),
+                        entry_price=Decimal(str(volume_data['last_price'])),
+                        limit_order_offset_pct=spec.limit_order_offset_pct,
+                        extended_hours=self._controller_config.extended_hours,
 
-                    # News metadata
-                    news_headline=f"[{spec.name}] {headline[:190]}" if headline else f"[{spec.name}]",
-                    publishing_date=pub_time.isoformat(),
-                    news_url=url,
-                    correlation_id=spec_correlation_id,
-                )
+                        # News metadata
+                        news_headline=f"[{spec.name}] {headline[:190]}" if headline else f"[{spec.name}]",
+                        publishing_date=pub_time.isoformat(),
+                        news_url=url,
+                        correlation_id=spec_correlation_id,
 
-                # Create strategy instance
-                strategy = NewsVolumeStrategy(config=strategy_config)
+                        # Polygon API key for trend calculation
+                        polygon_api_key=self._controller_config.polygon_api_key,
+                    )
+                    strategy = NewsTrendStrategy(config=strategy_config)
+                else:
+                    # Default: volume-based strategy (fixed time exit)
+                    strategy_config = NewsVolumeStrategyConfig(
+                        ticker=ticker,
+                        instrument_id=str(instrument.id),
+                        strategy_id=strategy_id,
+
+                        # Trading parameters from StrategySpec
+                        position_size_usd=Decimal(str(spec_position_size)),
+                        entry_price=Decimal(str(volume_data['last_price'])),
+                        limit_order_offset_pct=spec.limit_order_offset_pct,
+                        exit_delay_minutes=spec.exit_delay_minutes,
+                        extended_hours=self._controller_config.extended_hours,
+
+                        # News metadata
+                        news_headline=f"[{spec.name}] {headline[:190]}" if headline else f"[{spec.name}]",
+                        publishing_date=pub_time.isoformat(),
+                        news_url=url,
+                        correlation_id=spec_correlation_id,
+                        news_id=news_id,  # For event emission
+                    )
+                    strategy = NewsVolumeStrategy(config=strategy_config)
 
                 # Add to trader
                 self._trader.add_strategy(strategy)
@@ -711,7 +845,33 @@ class PubSubNewsController(Controller):
                 # Start the strategy
                 self._trader.start_strategy(strategy.id)
 
-                self.log.info(f"      ✅ [TRACE:{spec_correlation_id}] {spec.name} started: ${spec_position_size:.2f}, {spec.exit_delay_minutes}min exit")
+                exit_info = "trend-exit" if spec.strategy_type == "trend" else f"{spec.exit_delay_minutes}min exit"
+                self.log.info(f"      ✅ [TRACE:{spec_correlation_id}] {spec.name} ({spec.strategy_type}) started: ${spec_position_size:.2f}, {exit_info}")
+
+                # Store strategy in database
+                if self._trade_db and news_id:
+                    self._trade_db.insert_strategy(
+                        strategy_id=strategy_id,
+                        news_id=news_id,
+                        correlation_id=spec_correlation_id,
+                        ticker=ticker,
+                        strategy_type=spec.strategy_type,
+                        strategy_name=spec.name,
+                        position_size_usd=spec_position_size,
+                        entry_price=volume_data['last_price'],
+                    )
+
+                # Emit strategy spawned event
+                emit_strategy_spawned(
+                    news_id=news_id,
+                    strategy_id=strategy_id,
+                    strategy_type=spec.strategy_type,
+                    ticker=ticker,
+                    position_size_usd=spec_position_size,
+                    entry_price=volume_data['last_price'],
+                    exit_delay_seconds=spec.exit_delay_minutes * 60 if spec.strategy_type != "trend" else 0,
+                    headline=headline,
+                )
 
         except Exception as e:
             self.log.error(f"   ❌ Failed to spawn strategy: {e}")

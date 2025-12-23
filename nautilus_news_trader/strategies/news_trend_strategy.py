@@ -25,9 +25,10 @@ import os
 from nautilus_trader.config import StrategyConfig
 from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
-from nautilus_trader.model.enums import OrderSide, TimeInForce
+from nautilus_trader.model.enums import OrderSide, TimeInForce, BarAggregation, PriceType
 from nautilus_trader.model.orders import LimitOrder
 from nautilus_trader.model.instruments import Instrument
+from nautilus_trader.model.data import Bar, BarType, BarSpecification
 
 # Import trade notifier for GCP alerts (optional for backtest)
 try:
@@ -36,6 +37,26 @@ except ImportError:
     # Backtest mode - no trade notifications
     def get_trade_notifier():
         return None
+
+# Import trade database for persistence
+try:
+    from shared.trade_db import get_trade_db
+except ImportError:
+    try:
+        from nautilus_news_trader.shared.trade_db import get_trade_db
+    except ImportError:
+        def get_trade_db():
+            return None
+
+# Import event emitter for SSE streaming
+try:
+    from utils.event_emitter import emit_strategy_stopped
+except ImportError:
+    try:
+        from nautilus_news_trader.utils.event_emitter import emit_strategy_stopped
+    except ImportError:
+        def emit_strategy_stopped(*args, **kwargs):
+            pass
 
 # Strategy version - bump when logic changes
 STRATEGY_VERSION = "1"
@@ -73,16 +94,19 @@ class NewsTrendStrategyConfig(StrategyConfig, frozen=True):
     max_ema21_distance_pct: float = MAX_EMA21_DISTANCE_PCT
     trend_check_interval: float = TREND_CHECK_INTERVAL
 
-    # Historical data for EMA calculation
-    historical_bars: int = 300  # Bars to fetch for EMA warmup
+    # Bar catch-up parameters (buffered data from news publish to now)
+    bar_interval_seconds: int = 1   # Use 1-second bars for EMAs
+    catchup_seconds: int = 60       # Seconds of buffered bars (60s buffer)
+    min_catchup_bars: int = 30      # Minimum bars needed for EMA calculation
+    entry_window_seconds: int = 60  # Keep checking trend for N seconds after news
 
     # News metadata
     news_headline: str = ""
-    publishing_date: str = ""
+    publishing_date: str = ""  # ISO format for catch-up timestamp
     news_url: str = ""
     correlation_id: str = ""
 
-    # Polygon API key (for fetching bars)
+    # Polygon API key (for live price updates during monitoring)
     polygon_api_key: str = ""
 
 
@@ -110,6 +134,11 @@ class NewsTrendStrategy(Strategy):
             symbol=Symbol(config.ticker),
             venue=Venue("ALPACA")
         )
+        # Polygon instrument ID for data subscription
+        self.polygon_instrument_id = InstrumentId(
+            symbol=Symbol(config.ticker),
+            venue=Venue("POLYGON")
+        )
 
         # State tracking
         self.entry_order_id = None
@@ -119,16 +148,38 @@ class NewsTrendStrategy(Strategy):
         self.position_open = False
         self.monitoring_active = False
         self.stop_monitoring = threading.Event()
+        self.entry_decision_made = False
 
-        # EMA data
-        self.bars_df: Optional[pd.DataFrame] = None
+        # Bar catch-up tracking
+        self.catchup_complete = False
+        self.catchup_since_ms: Optional[int] = None
+        self.catchup_bar_count = 0
+        self.catchup_prices: List[float] = []  # Close prices for EMA calculation
+        self.catchup_volumes: List[int] = []   # Volumes for analysis
+        self.live_bar_count = 0
+        self.bar_type: Optional[BarType] = None
+
+        # Parse publishing_date to get catchup_since_ms and entry window
+        self.entry_window_end_ms: Optional[int] = None  # Deadline for trend entry check
+        if config.publishing_date:
+            try:
+                pub_time = datetime.fromisoformat(config.publishing_date.replace('Z', '+00:00'))
+                catchup_start = pub_time - timedelta(seconds=config.catchup_seconds)
+                self.catchup_since_ms = int(catchup_start.timestamp() * 1000)
+                # Entry window = pub_time + entry_window_seconds
+                entry_deadline = pub_time + timedelta(seconds=config.entry_window_seconds)
+                self.entry_window_end_ms = int(entry_deadline.timestamp() * 1000)
+            except Exception:
+                self.catchup_since_ms = None
+                self.entry_window_end_ms = None
+
+        # EMA data (calculated from catch-up bars)
         self.current_trend_strength: float = 0.0
         self.current_ema8: float = 0.0
         self.current_ema21: float = 0.0
         self.current_ema55: float = 0.0
-        self.current_ema100: float = 0.0
-        self.current_ema200: float = 0.0
         self.current_price: float = 0.0
+        self.catchup_vwap: float = 0.0
 
         # Instrument reference
         self.instrument: Optional[Instrument] = None
@@ -136,14 +187,23 @@ class NewsTrendStrategy(Strategy):
         # Trade notifier
         self.trade_notifier = get_trade_notifier()
 
+        # Trade database for persistence
+        self._trade_db = get_trade_db()
+
+        # Stop reason tracking
+        self._stop_reason: Optional[str] = None
+
         # Latency tracking
         self.entry_order_time_ms: Optional[float] = None
         self.exit_order_time_ms: Optional[float] = None
         self.exit_decision_price: Optional[float] = None
         self.entry_fill_price: Optional[float] = None
 
+        # Status logging
+        self.status_timer_set = False
+
     def on_start(self):
-        """Called when strategy starts - fetch historical data and evaluate entry."""
+        """Called when strategy starts - subscribe to bars and wait for catch-up."""
         trace_id = self._config.correlation_id
         self.log.info(f"🚀 [TRACE:{trace_id}] NewsTrendStrategy starting for {self.ticker}")
         self.log.info(f"   [TRACE:{trace_id}] Strategy ID: {self._config.strategy_id}")
@@ -159,56 +219,392 @@ class NewsTrendStrategy(Strategy):
             self.stop()
             return
 
-        # Fetch historical bars and calculate EMAs
-        if not self._fetch_and_calculate_emas():
-            self.log.error(f"❌ [TRACE:{trace_id}] Failed to fetch historical data or calculate EMAs")
+        # Subscribe to 1-second bars with catch-up
+        # Entry will be triggered in on_bar() after catch-up completes
+        try:
+            self._subscribe_bars_with_catchup()
+            self.log.info(f"📡 [TRACE:{trace_id}] Waiting for catch-up bars...")
+        except Exception as e:
+            self.log.error(f"❌ [TRACE:{trace_id}] Could not subscribe to bars: {e}")
             self.stop()
             return
 
-        # Log current trend state
-        self.log.info(f"📊 [TRACE:{trace_id}] Current trend_strength: {self.current_trend_strength:.2f}")
-        self.log.info(f"   [TRACE:{trace_id}] Current price: ${self.current_price:.4f}")
-        self.log.info(f"   [TRACE:{trace_id}] EMA8: ${self.current_ema8:.4f}, EMA21: ${self.current_ema21:.4f}")
+        # Set catch-up timeout - if no bars arrive within 10 seconds, skip
+        self.clock.set_timer(
+            name=f"catchup_timeout_{self._config.strategy_id}",
+            interval=pd.Timedelta(seconds=10),
+            callback=self._on_catchup_timeout,
+        )
+        self.log.info(f"⏱️  [TRACE:{trace_id}] Catch-up timeout set: 10 seconds")
+
+        # Set up periodic status logging every 10 seconds
+        self.clock.set_timer(
+            name=f"status_log_{self._config.strategy_id}",
+            interval=pd.Timedelta(seconds=10),
+            callback=self._on_status_timer,
+        )
+        self.status_timer_set = True
+
+    def _subscribe_bars_with_catchup(self):
+        """Subscribe to 1-second bars with 'since' for catch-up replay."""
+        trace_id = self._config.correlation_id
+
+        # Create bar specification for 1-second bars
+        bar_spec = BarSpecification(
+            step=1,
+            aggregation=BarAggregation.SECOND,
+            price_type=PriceType.LAST,
+        )
+
+        # Create bar type for Polygon instrument
+        self.bar_type = BarType(
+            instrument_id=self.polygon_instrument_id,
+            bar_spec=bar_spec,
+        )
+
+        # Subscribe with 'since' for catch-up
+        if self.catchup_since_ms:
+            self.log.info(
+                f"📊 [TRACE:{trace_id}] Subscribing to 1s bars "
+                f"with since={self.catchup_since_ms} (catchup={self._config.catchup_seconds}s)"
+            )
+
+            # Try to get the Polygon data client for since parameter
+            try:
+                data_engine = self.msgbus._endpoints.get("DataEngine.execute")
+                if data_engine:
+                    for client in data_engine._clients.values():
+                        if hasattr(client, 'subscribe_bars_with_since'):
+                            import asyncio
+                            asyncio.create_task(
+                                client.subscribe_bars_with_since(
+                                    self.bar_type,
+                                    since_ms=self.catchup_since_ms,
+                                )
+                            )
+                            self.log.info(f"✅ [TRACE:{trace_id}] Bar subscription sent with since parameter")
+                            return
+            except Exception as e:
+                self.log.warning(f"⚠️ [TRACE:{trace_id}] Could not access data client: {e}")
+
+        # Fallback: use standard subscription
+        self.log.info(f"📊 [TRACE:{trace_id}] Subscribing to 1s bars (no catchup)")
+        self.subscribe_bars(self.bar_type)
+
+    def _cancel_catchup_timeout(self):
+        """Cancel the catch-up timeout timer."""
+        try:
+            timer_name = f"catchup_timeout_{self._config.strategy_id}"
+            self.clock.cancel_timer(timer_name)
+        except Exception:
+            pass
+
+    def _on_catchup_timeout(self, event):
+        """Handle catch-up timeout - no bars received."""
+        trace_id = self._config.correlation_id
+        if not self.catchup_complete and not self.entry_decision_made:
+            self.log.warning(f"⏰ [TRACE:{trace_id}] Catch-up timeout: no bars received in 10s")
+            self.log.info(f"⏭️  [TRACE:{trace_id}] SKIP: No market data available")
+            self.entry_decision_made = True
+            self.stop()
+
+    def _on_status_timer(self, event):
+        """Log full status every 10 seconds."""
+        trace_id = self._config.correlation_id
+        total_volume = sum(self.catchup_volumes) if self.catchup_volumes else 0
+
+        # Position status
+        if self.position_open:
+            pos_status = "OPEN"
+        elif self.entry_filled:
+            pos_status = "CLOSED"
+        elif self.entry_decision_made:
+            pos_status = "SKIPPED"
+        else:
+            pos_status = "PENDING"
+
+        self.log.info(f"📈 [TRACE:{trace_id}] STATUS [{pos_status}] {self.ticker}:")
+        self.log.info(f"   [TRACE:{trace_id}]   Bars: {self.catchup_bar_count} catchup + {self.live_bar_count} live")
+        self.log.info(f"   [TRACE:{trace_id}]   Volume: {total_volume:,}")
+        self.log.info(f"   [TRACE:{trace_id}]   Price: ${self.current_price:.4f} | VWAP: ${self.catchup_vwap:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   EMA8: ${self.current_ema8:.4f} | EMA21: ${self.current_ema21:.4f} | EMA55: ${self.current_ema55:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   Trend: {self.current_trend_strength:.1f} (entry>={self._config.trend_entry_threshold}, exit<{self._config.trend_exit_threshold})")
+
+    def on_bar(self, bar: Bar):
+        """Handle incoming bars - accumulate during catch-up, then check trend."""
+        if bar.bar_type != self.bar_type:
+            return
+
+        trace_id = self._config.correlation_id
+        current_time_ms = self.clock.timestamp_ms()
+        bar_end_time_ms = bar.ts_event // 1_000_000
+
+        bar_age_ms = current_time_ms - bar_end_time_ms
+        is_catchup = bar_age_ms > 500
+
+        if is_catchup:
+            self.catchup_bar_count += 1
+            bar_close = float(bar.close)
+            bar_volume = int(bar.volume)
+            self.catchup_prices.append(bar_close)
+            self.catchup_volumes.append(bar_volume)
+
+            self.log.debug(
+                f"   [TRACE:{trace_id}] CATCHUP bar #{self.catchup_bar_count}: "
+                f"C={bar_close:.2f} V={bar_volume} (age={bar_age_ms}ms)"
+            )
+        else:
+            # First live bar = catch-up complete
+            if not self.catchup_complete:
+                self.catchup_complete = True
+                self._cancel_catchup_timeout()
+                self._calculate_emas_and_check_entry()
+
+            self.live_bar_count += 1
+            bar_close = float(bar.close)
+
+            # Update EMAs incrementally
+            self._update_ema_incremental(bar_close)
+
+            # Check entry window and trend conditions
+            if not self.entry_decision_made and not self.entry_filled:
+                self._check_trend_entry_window()
+
+            self.log.debug(
+                f"   [TRACE:{trace_id}] LIVE bar #{self.live_bar_count}: "
+                f"C={bar_close:.2f} trend={self.current_trend_strength:.1f}"
+            )
+
+    def _check_trend_entry_window(self):
+        """Check trend condition during entry window (1 minute after news)."""
+        trace_id = self._config.correlation_id
+        current_ms = self.clock.timestamp_ms()
+
+        # Check if entry window expired
+        if self.entry_window_end_ms and current_ms > self.entry_window_end_ms:
+            self.log.info(
+                f"⏱️  [TRACE:{trace_id}] Entry window expired, trend={self.current_trend_strength:.1f}"
+            )
+            self.log.info(f"⏭️  [TRACE:{trace_id}] SKIP: Trend never reached {self._config.trend_entry_threshold}")
+            self.entry_decision_made = True
+            self.stop()
+            return
 
         # Check danger zone
-        ema8_distance = abs((self.current_price - self.current_ema8) / self.current_ema8 * 100)
-        ema21_distance = abs((self.current_price - self.current_ema21) / self.current_ema21 * 100)
+        ema8_distance = abs((self.current_price - self.current_ema8) / self.current_ema8 * 100) if self.current_ema8 > 0 else 0
+        ema21_distance = abs((self.current_price - self.current_ema21) / self.current_ema21 * 100) if self.current_ema21 > 0 else 0
 
-        self.log.info(f"   [TRACE:{trace_id}] EMA8 distance: {ema8_distance:.2f}% (max: {self._config.max_ema8_distance_pct}%)")
-        self.log.info(f"   [TRACE:{trace_id}] EMA21 distance: {ema21_distance:.2f}% (max: {self._config.max_ema21_distance_pct}%)")
-
-        # Check if in danger zone
         in_danger_zone = (
             ema8_distance > self._config.max_ema8_distance_pct or
             ema21_distance > self._config.max_ema21_distance_pct
         )
 
         if in_danger_zone:
-            self.log.warning(f"⚠️  [TRACE:{trace_id}] In DANGER ZONE - waiting for pullback")
-            # Start monitoring for pullback instead of entering immediately
-            self._start_danger_zone_monitoring()
+            return  # Still in danger zone, keep waiting
+
+        # Check trend entry condition
+        if self.current_trend_strength >= self._config.trend_entry_threshold:
+            self.log.info(
+                f"✅ [TRACE:{trace_id}] Trend reached {self.current_trend_strength:.1f} >= {self._config.trend_entry_threshold}"
+            )
+            self.entry_decision_made = True
+            self._place_entry_order_with_price(self.current_price)
+
+    def _calculate_emas_and_check_entry(self):
+        """Calculate EMAs from catch-up bars and do first trend check."""
+        if self.entry_decision_made:
+            return
+
+        trace_id = self._config.correlation_id
+
+        # Check minimum bars
+        min_bars = self._config.min_catchup_bars
+        if self.catchup_bar_count < min_bars:
+            self.log.info(
+                f"⏭️  [TRACE:{trace_id}] SKIP: Only {self.catchup_bar_count} bars < min {min_bars}"
+            )
+            self.stop()
+            return
+
+        # Calculate EMAs from catch-up prices
+        prices = np.array(self.catchup_prices)
+        volumes = np.array(self.catchup_volumes)
+
+        # Calculate VWAP
+        total_volume = volumes.sum()
+        if total_volume > 0:
+            self.catchup_vwap = (prices * volumes).sum() / total_volume
+        else:
+            self.catchup_vwap = prices[-1] if len(prices) > 0 else 0
+
+        # Calculate EMAs using pandas for accuracy
+        df = pd.DataFrame({'close': prices})
+        df['ema8'] = df['close'].ewm(span=8, adjust=False).mean()
+        df['ema21'] = df['close'].ewm(span=21, adjust=False).mean()
+        df['ema55'] = df['close'].ewm(span=55, adjust=False).mean()
+
+        # Get current values
+        self.current_price = prices[-1]
+        self.current_ema8 = df['ema8'].iloc[-1]
+        self.current_ema21 = df['ema21'].iloc[-1]
+        self.current_ema55 = df['ema55'].iloc[-1] if len(prices) >= 55 else df['ema21'].iloc[-1]
+
+        # Calculate trend strength (simplified for 60 bars)
+        self._calculate_trend_strength_from_df(df)
+
+        self.log.info(
+            f"📊 [TRACE:{trace_id}] CATCH-UP COMPLETE: "
+            f"{self.catchup_bar_count} bars, {total_volume:,} volume, VWAP=${self.catchup_vwap:.2f}"
+        )
+        self.log.info(
+            f"   [TRACE:{trace_id}] Price: ${self.current_price:.2f}, "
+            f"EMA8: ${self.current_ema8:.2f}, EMA21: ${self.current_ema21:.2f}"
+        )
+        self.log.info(f"   [TRACE:{trace_id}] Trend strength: {self.current_trend_strength:.1f}")
+
+        # Check danger zone
+        ema8_distance = abs((self.current_price - self.current_ema8) / self.current_ema8 * 100) if self.current_ema8 > 0 else 0
+        ema21_distance = abs((self.current_price - self.current_ema21) / self.current_ema21 * 100) if self.current_ema21 > 0 else 0
+
+        self.log.info(
+            f"   [TRACE:{trace_id}] EMA8 distance: {ema8_distance:.1f}% (max: {self._config.max_ema8_distance_pct}%)"
+        )
+        self.log.info(
+            f"   [TRACE:{trace_id}] EMA21 distance: {ema21_distance:.1f}% (max: {self._config.max_ema21_distance_pct}%)"
+        )
+
+        in_danger_zone = (
+            ema8_distance > self._config.max_ema8_distance_pct or
+            ema21_distance > self._config.max_ema21_distance_pct
+        )
+
+        if in_danger_zone:
+            self.log.info(f"⏭️  [TRACE:{trace_id}] SKIP: In DANGER ZONE")
+            self.stop()
             return
 
         # Check trend entry condition
         if self.current_trend_strength >= self._config.trend_entry_threshold:
-            self.log.info(f"✅ [TRACE:{trace_id}] Trend condition met! ({self.current_trend_strength:.2f} >= {self._config.trend_entry_threshold})")
-            self._place_entry_order()
+            self.log.info(
+                f"✅ [TRACE:{trace_id}] Trend OK: {self.current_trend_strength:.1f} >= {self._config.trend_entry_threshold}"
+            )
+            self.entry_decision_made = True
+            self._place_entry_order_with_price(self.catchup_vwap)
         else:
-            self.log.info(f"⏭️  [TRACE:{trace_id}] Trend too weak: {self.current_trend_strength:.2f} < {self._config.trend_entry_threshold}")
-            self.stop()
-            return
+            # Don't skip yet - keep monitoring during entry window
+            remaining_ms = (self.entry_window_end_ms - self.clock.timestamp_ms()) if self.entry_window_end_ms else 0
+            remaining_sec = max(0, remaining_ms / 1000)
+            self.log.info(
+                f"👁️  [TRACE:{trace_id}] Trend {self.current_trend_strength:.1f} < {self._config.trend_entry_threshold}, "
+                f"monitoring for {remaining_sec:.0f}s..."
+            )
+            # entry_decision_made stays False, will keep checking in on_bar()
 
-        # Set up fast-fill check
-        self.entry_timer_set = True
-        self.clock.set_time_alert_ns(
-            name=f"check_fill_{self._config.strategy_id}",
-            alert_time_ns=self.clock.timestamp_ns() + 1_000_000,
-            callback=self._check_fast_fill,
-        )
+    def _calculate_trend_strength_from_df(self, df: pd.DataFrame):
+        """Calculate trend strength from catch-up bar dataframe."""
+        # EMA alignment score (0-100)
+        # With 60 bars, we only have EMA8, EMA21, EMA55 reliably
+        alignment = 0
+        if df['ema8'].iloc[-1] > df['ema21'].iloc[-1]:
+            alignment += 50
+        if df['ema21'].iloc[-1] > df['ema55'].iloc[-1]:
+            alignment += 50
+
+        # EMA slope strength (0-100) - are EMAs rising?
+        slope_8 = (df['ema8'].iloc[-1] - df['ema8'].iloc[-5]) / df['ema8'].iloc[-5] * 100 if len(df) >= 5 else 0
+        slope_21 = (df['ema21'].iloc[-1] - df['ema21'].iloc[-5]) / df['ema21'].iloc[-5] * 100 if len(df) >= 5 else 0
+
+        # Positive slope = bullish, normalize to 0-100
+        slope_score = min(100, max(0, (slope_8 + slope_21) * 10 + 50))
+
+        # Final trend strength
+        self.current_trend_strength = 0.6 * alignment + 0.4 * slope_score
+
+    def _update_ema_incremental(self, new_price: float):
+        """Update EMAs incrementally with new price for live monitoring."""
+        def update_ema(old_ema: float, price: float, span: int) -> float:
+            alpha = 2 / (span + 1)
+            return alpha * price + (1 - alpha) * old_ema
+
+        self.current_price = new_price
+        self.current_ema8 = update_ema(self.current_ema8, new_price, 8)
+        self.current_ema21 = update_ema(self.current_ema21, new_price, 21)
+        self.current_ema55 = update_ema(self.current_ema55, new_price, 55)
+
+        # Recalculate alignment-based trend strength
+        alignment = 0
+        if self.current_ema8 > self.current_ema21:
+            alignment += 50
+        if self.current_ema21 > self.current_ema55:
+            alignment += 50
+
+        self.current_trend_strength = alignment
+
+        # Check exit condition only when position is open (not during entry monitoring)
+        if self.position_open and self.entry_filled:
+            if self.current_trend_strength < self._config.trend_exit_threshold:
+                trace_id = self._config.correlation_id
+                self.log.info(f"📉 [TRACE:{trace_id}] TREND EXIT: {self.current_trend_strength:.1f} < {self._config.trend_exit_threshold}")
+                self._place_exit_order()
+
+    def _place_entry_order_with_price(self, entry_price: float):
+        """Place limit buy order with given price."""
+        try:
+            trace_id = self._config.correlation_id
+
+            limit_price = entry_price * (1 + self._config.limit_order_offset_pct)
+            position_size = float(self._config.position_size_usd)
+            qty = int(position_size / limit_price)
+
+            if qty == 0:
+                self.log.warning(f"⏭️  [TRACE:{trace_id}] SKIP: Calculated qty=0")
+                self.stop()
+                return
+
+            order: LimitOrder = self.order_factory.limit(
+                instrument_id=self.instrument_id,
+                order_side=OrderSide.BUY,
+                quantity=self.instrument.make_qty(qty),
+                price=self.instrument.make_price(limit_price),
+                time_in_force=TimeInForce.DAY,
+                post_only=False,
+            )
+
+            self.entry_order_id = order.client_order_id
+            self.log.info(f"✅ [TRACE:{trace_id}] Submitting BUY: {self.ticker} x{qty} @ ${limit_price:.2f}")
+            self.log.info(f"   [TRACE:{trace_id}] Trend: {self.current_trend_strength:.1f}, VWAP: ${entry_price:.2f}")
+
+            self.entry_order_time_ms = time.time() * 1000
+            self.submit_order(order)
+
+            # Set up entry tracking
+            self.entry_timer_set = True
+            self.clock.set_time_alert_ns(
+                name=f"check_fill_{self._config.strategy_id}",
+                alert_time_ns=self.clock.timestamp_ns() + 1_000_000,
+                callback=self._check_fast_fill,
+            )
+
+            if self.trade_notifier:
+                self.trade_notifier.notify_trade(
+                    side='BUY',
+                    ticker=self.ticker,
+                    quantity=qty,
+                    price=limit_price,
+                    order_id=str(order.client_order_id),
+                    news_headline=f"[TREND:{self.current_trend_strength:.0f}] {self._config.news_headline}",
+                    strategy_id=self._config.strategy_id
+                )
+
+        except Exception as e:
+            self.log.error(f"❌ [TRACE:{trace_id}] Error placing entry order: {e}")
+            import traceback
+            self.log.error(f"Traceback: {traceback.format_exc()}")
+            self.stop()
 
     def _fetch_and_calculate_emas(self) -> bool:
-        """Fetch historical bars from Polygon and calculate EMAs."""
-        trace_id = self._config.correlation_id
+        """DEPRECATED: Now using catch-up bars instead of REST API."""
+        return False  # No longer used
         try:
             # Calculate time range - fetch last N minutes of 1-second bars
             now = datetime.now(timezone.utc)
@@ -634,6 +1030,15 @@ class NewsTrendStrategy(Strategy):
         self.log.error(f"   [TRACE:{trace_id}] Reason: {event.reason}")
         self.stop()
 
+    def on_order_cancelled(self, event):
+        """Called when order cancellation is confirmed."""
+        trace_id = self._config.correlation_id
+        self.log.info(f"📝 [TRACE:{trace_id}] Order CANCELLED: {event.client_order_id}")
+
+        # Update order status in database
+        if self._trade_db:
+            self._trade_db.update_order_cancelled(str(event.client_order_id))
+
     def _place_exit_order(self):
         """Place limit sell order to exit position."""
         try:
@@ -714,9 +1119,38 @@ class NewsTrendStrategy(Strategy):
         trace_id = self._config.correlation_id
         self.log.info(f"🛑 [TRACE:{trace_id}] NewsTrendStrategy stopping for {self.ticker}")
 
+        # Log final indicator values for comparison with historical fetch
+        self.log.info(f"📊 [TRACE:{trace_id}] FINAL INDICATORS (for comparison):")
+        self.log.info(f"   [TRACE:{trace_id}]   Catchup bars: {self.catchup_bar_count}")
+        self.log.info(f"   [TRACE:{trace_id}]   Catchup volume: {sum(self.catchup_volumes) if self.catchup_volumes else 0:,}")
+        self.log.info(f"   [TRACE:{trace_id}]   VWAP: ${self.catchup_vwap:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   Final price: ${self.current_price:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   EMA8: ${self.current_ema8:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   EMA21: ${self.current_ema21:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   EMA55: ${self.current_ema55:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   Trend strength: {self.current_trend_strength:.1f}")
+
         # Signal monitoring threads to stop
         self.stop_monitoring.set()
         self.monitoring_active = False
+
+        # Cancel catch-up timeout timer
+        self._cancel_catchup_timeout()
+
+        # Cancel status logging timer
+        if self.status_timer_set:
+            try:
+                self.clock.cancel_timer(f"status_log_{self._config.strategy_id}")
+                self.status_timer_set = False
+            except Exception:
+                pass
+
+        # Unsubscribe from bars
+        if self.bar_type:
+            try:
+                self.unsubscribe_bars(self.bar_type)
+            except Exception:
+                pass
 
         # Cancel fast-fill check timer
         if self.entry_timer_set:
@@ -746,6 +1180,32 @@ class NewsTrendStrategy(Strategy):
         if position:
             self.log.info(f"⚠️  [TRACE:{trace_id}] Open position on stop - placing exit order")
             self._place_exit_order_on_stop()
+
+        # Determine stop reason if not already set
+        if not self._stop_reason:
+            if self.entry_filled:
+                self._stop_reason = "completed"
+            elif not self.catchup_complete:
+                self._stop_reason = "insufficient_bars"
+            elif not self.entry_decision_made:
+                self._stop_reason = "no_trend"
+            else:
+                self._stop_reason = "no_fill"
+
+        # Update database with strategy stopped
+        if self._trade_db:
+            try:
+                self._trade_db.update_strategy_stopped(self._config.strategy_id, self._stop_reason)
+                self.log.info(f"   [TRACE:{trace_id}] Database updated: stopped with reason '{self._stop_reason}'")
+            except Exception as e:
+                self.log.error(f"   [TRACE:{trace_id}] Error updating database: {e}")
+
+        # Emit strategy stopped event for SSE streaming
+        emit_strategy_stopped(
+            news_id=self._config.news_id,
+            strategy_id=self._config.strategy_id,
+            reason=self._stop_reason,
+        )
 
     def _place_exit_order_on_stop(self):
         """Place exit order when strategy is stopped with open position."""

@@ -1,0 +1,19 @@
+[Unit]
+Description=News API Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/news-trader
+Environment="PATH=/opt/news-trader/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/news-trader/.env
+ExecStart=/opt/news-trader/.venv/bin/python /opt/news-trader/news_api.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

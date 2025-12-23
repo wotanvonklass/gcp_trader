@@ -425,6 +425,7 @@ dependencies = [
  "dashmap",
  "dotenv",
  "futures-util",
+ "rand",
  "serde",
  "serde_json",
  "tokio",
