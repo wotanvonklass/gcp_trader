@@ -12,7 +12,11 @@ import {
 } from 'lightweight-charts'
 import type { Time, SeriesMarker, ISeriesApi, SeriesType } from 'lightweight-charts'
 import type { OHLCVBar } from '../types'
-import { calculateEMAs, formatEMAForChart } from '../indicators'
+import { calculateEMAs, formatEMAForChart, calculateTrendStrength } from '../indicators'
+
+// Strategy thresholds from news_trend_strategy.py
+const TREND_ENTRY_THRESHOLD = 95.0
+const TREND_EXIT_THRESHOLD = 64.0
 
 interface TradingChartProps {
   bars: OHLCVBar[]
@@ -35,6 +39,7 @@ interface HoveredData {
   volume: number
   change: number
   changePercent: number
+  trendStrength?: number
 }
 
 // Format milliseconds timestamp to HH:MM:SS.mmm
@@ -61,6 +66,7 @@ export function TradingChart({
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredData, setHoveredData] = useState<HoveredData | null>(null)
   const [emasVisible, setEmasVisible] = useState(showEMAs)
+  const [trendVisible, setTrendVisible] = useState(true)
 
   // Calculate EMAs from bars
   const emaData = useMemo(() => {
@@ -70,8 +76,19 @@ export function TradingChart({
       ema8: formatEMAForChart(bars, emas[8]),
       ema21: formatEMAForChart(bars, emas[21]),
       ema55: formatEMAForChart(bars, emas[55]),
+      raw: emas, // Keep raw arrays for trend calculation
     }
   }, [bars])
+
+  // Calculate trend strength series
+  const trendData = useMemo(() => {
+    if (!emaData || bars.length < 10) return null
+    const { raw } = emaData
+    return bars.map((bar, i) => ({
+      time: bar.t / 1000, // Decimal seconds for ms precision
+      value: calculateTrendStrength(raw[8], raw[21], raw[55], i),
+    }))
+  }, [bars, emaData])
 
   useEffect(() => {
     if (!containerRef.current || bars.length === 0) return
@@ -81,6 +98,14 @@ export function TradingChart({
     bars.forEach((bar) => {
       volumeMap.set(bar.t / 1000, bar.v)
     })
+
+    // Create a lookup map for trend strength data
+    const trendMap = new Map<number, number>()
+    if (trendData) {
+      trendData.forEach((point) => {
+        trendMap.set(point.time, point.value)
+      })
+    }
 
     // Time formatter for tooltips (with ms)
     const msTimeFormatter = (time: number) => formatMsTime(time * 1000)
@@ -139,7 +164,7 @@ export function TradingChart({
       priceScaleId: '', // overlay
     })
     volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.7, bottom: 0 },
+      scaleMargins: { top: 0.65, bottom: 0.2 },
     })
 
     const volumeData = bars.map((bar) => ({
@@ -186,6 +211,55 @@ export function TradingChart({
       ema55Series.setData(
         emaData.ema55.map((d) => ({ time: d.time as Time, value: d.value }))
       )
+    }
+
+    // Add trend strength indicator if enabled (bottom 20%, left scale)
+    if (trendVisible && trendData && trendData.length > 0) {
+      // Trend strength line (blue)
+      const trendSeries = chart.addSeries(LineSeries, {
+        color: '#3b82f6', // blue
+        lineWidth: 2,
+        priceScaleId: 'trend',
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: true,
+      })
+      trendSeries.priceScale().applyOptions({
+        scaleMargins: { top: 0.85, bottom: 0 },
+      })
+      trendSeries.setData(
+        trendData.map((d) => ({ time: d.time as Time, value: d.value }))
+      )
+
+      // Entry threshold line (green dashed at 95)
+      const entryThresholdSeries = chart.addSeries(LineSeries, {
+        color: '#22c55e',
+        lineWidth: 1,
+        lineStyle: 2, // dashed
+        priceScaleId: 'trend',
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      })
+      entryThresholdSeries.setData([
+        { time: trendData[0].time as Time, value: TREND_ENTRY_THRESHOLD },
+        { time: trendData[trendData.length - 1].time as Time, value: TREND_ENTRY_THRESHOLD },
+      ])
+
+      // Exit threshold line (red dashed at 64)
+      const exitThresholdSeries = chart.addSeries(LineSeries, {
+        color: '#ef4444',
+        lineWidth: 1,
+        lineStyle: 2, // dashed
+        priceScaleId: 'trend',
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      })
+      exitThresholdSeries.setData([
+        { time: trendData[0].time as Time, value: TREND_EXIT_THRESHOLD },
+        { time: trendData[trendData.length - 1].time as Time, value: TREND_EXIT_THRESHOLD },
+      ])
     }
 
     // Add news/entry/exit markers
@@ -250,6 +324,7 @@ export function TradingChart({
       if (candleData && 'open' in candleData) {
         const timeSeconds = param.time as number
         const volume = volumeMap.get(timeSeconds) || 0
+        const trend = trendMap.get(timeSeconds)
         const change = candleData.close - candleData.open
         const changePercent = (change / candleData.open) * 100
 
@@ -265,6 +340,7 @@ export function TradingChart({
           volume,
           change,
           changePercent,
+          trendStrength: trend,
         })
       } else {
         setHoveredData(null)
@@ -287,7 +363,7 @@ export function TradingChart({
       resizeObserver.disconnect()
       chart.remove()
     }
-  }, [bars, newsTime, receivedTime, entryTime, entryPrice, exitTime, exitPrice, emasVisible, emaData])
+  }, [bars, newsTime, receivedTime, entryTime, entryPrice, exitTime, exitPrice, emasVisible, emaData, trendData, trendVisible])
 
   // Format number for display
   const formatPrice = (price: number) => {
@@ -324,6 +400,24 @@ export function TradingChart({
               )}
             </button>
           )}
+          {trendData && (
+            <button
+              onClick={() => setTrendVisible(!trendVisible)}
+              className={`flex items-center gap-2 rounded px-2 py-0.5 text-xs transition-colors ${
+                trendVisible
+                  ? 'bg-slate-600 text-white'
+                  : 'bg-slate-700 text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <span>Trend</span>
+              {trendVisible && (
+                <span className="flex items-center gap-1 text-[10px]">
+                  <span className="text-green-400">↑{TREND_ENTRY_THRESHOLD}</span>
+                  <span className="text-red-400">↓{TREND_EXIT_THRESHOLD}</span>
+                </span>
+              )}
+            </button>
+          )}
         </div>
         <span className="text-xs text-gray-500">
           Powered by TradingView Lightweight Charts
@@ -353,6 +447,22 @@ export function TradingChart({
               <span className="text-gray-500">
                 Vol <span className="text-white">{formatVolume(hoveredData.volume)}</span>
               </span>
+              {hoveredData.trendStrength !== undefined && (
+                <span className="text-gray-500">
+                  Trend{' '}
+                  <span
+                    className={
+                      hoveredData.trendStrength >= TREND_ENTRY_THRESHOLD
+                        ? 'text-green-400'
+                        : hoveredData.trendStrength < TREND_EXIT_THRESHOLD
+                          ? 'text-red-400'
+                          : 'text-blue-400'
+                    }
+                  >
+                    {hoveredData.trendStrength.toFixed(1)}
+                  </span>
+                </span>
+              )}
             </>
           ) : (
             <span className="text-gray-500">Hover over chart to see OHLCV data</span>

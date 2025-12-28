@@ -45,6 +45,7 @@ interface NewsItemDisplay {
   news_age_ms?: number
   status: string
   pub_time?: string
+  received_at?: string  // When we received/processed the news
   skip_reason?: string
 }
 
@@ -124,6 +125,7 @@ export function PipelineView() {
               news_age_ms: detail.news_age_ms,
               status: detail.decision === 'trade' ? 'triggered' : 'skipped',
               pub_time: detail.pub_time,
+              received_at: detail.received_at,
               skip_reason: skipReason,
             })
           }
@@ -373,15 +375,14 @@ export function PipelineView() {
           </div>
           {/* Chart - shows price action around news time */}
           {(() => {
-            // Find news_received event timestamp
-            const receivedEvent = events.find((e) => e.type === 'news_received')
-            const receivedTime = receivedEvent ? new Date(receivedEvent.timestamp).getTime() : undefined
+            const newsTimeMs = selectedItem.pub_time ? new Date(selectedItem.pub_time).getTime() : undefined
+            const receivedTime = selectedItem.received_at ? new Date(selectedItem.received_at).getTime() : undefined
 
             return bars.length > 0 ? (
               <TradingChart
                 bars={bars}
                 ticker={selectedTicker || selectedItem.tickers[0]}
-                newsTime={selectedItem.pub_time ? new Date(selectedItem.pub_time).getTime() : undefined}
+                newsTime={newsTimeMs}
                 receivedTime={receivedTime}
               />
             ) : null
@@ -561,25 +562,3 @@ function StrategyCard({ strategy }: { strategy: StrategyExecution }) {
   )
 }
 
-function IndicatorRow({
-  label,
-  value,
-  color = 'text-white',
-}: {
-  label: string
-  value: string
-  color?: string
-}) {
-  return (
-    <div className="flex justify-between">
-      <span className="text-gray-500">{label}</span>
-      <span className={color}>{value}</span>
-    </div>
-  )
-}
-
-function formatVolume(vol: number): string {
-  if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(2)}M`
-  if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`
-  return vol.toString()
-}

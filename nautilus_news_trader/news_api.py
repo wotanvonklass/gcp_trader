@@ -548,10 +548,88 @@ async def get_news_events(
     news_id: str,
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
 ):
-    """Get all pipeline events for a specific news item."""
+    """Get all pipeline events for a specific news item.
+
+    First checks in-memory event store, then synthesizes from database if empty.
+    """
     verify_api_key(x_api_key)
+
+    # Try in-memory store first (for live/recent events)
     events = event_store.get_events_for_news(news_id)
-    return {"events": events}
+    if events:
+        return {"events": events}
+
+    # Synthesize events from database for historical news
+    synthesized = []
+    db = get_trade_db(DB_PATH)
+
+    # Get news event data
+    news = db.get_news_event_by_id(news_id)
+    if news:
+        # News received event
+        if news.get("received_at"):
+            synthesized.append({
+                "id": f"{news_id}_received",
+                "type": "news_received",
+                "news_id": news_id,
+                "timestamp": news["received_at"],
+                "data": {
+                    "headline": news.get("headline"),
+                    "tickers": news.get("tickers", []),
+                    "news_age_ms": news.get("news_age_ms"),
+                }
+            })
+
+        # Decision event
+        if news.get("decision"):
+            synthesized.append({
+                "id": f"{news_id}_decision",
+                "type": "news_decision",
+                "news_id": news_id,
+                "timestamp": news.get("received_at", news.get("pub_time")),
+                "data": {
+                    "decision": news["decision"],
+                    "skip_reason": news.get("skip_reason"),
+                }
+            })
+
+    # Get strategies for this news
+    strategies = db.get_strategies_for_news(news_id)
+    for strat in strategies:
+        # Strategy spawned event
+        if strat.get("started_at"):
+            synthesized.append({
+                "id": f"{strat['id']}_spawned",
+                "type": "strategy_spawned",
+                "news_id": news_id,
+                "timestamp": strat["started_at"],
+                "data": {
+                    "strategy_id": strat["id"],
+                    "ticker": strat.get("ticker"),
+                    "strategy_type": strat.get("strategy_type"),
+                    "position_size_usd": strat.get("position_size_usd"),
+                    "entry_price": strat.get("entry_price"),
+                }
+            })
+
+        # Strategy stopped event
+        if strat.get("stopped_at"):
+            synthesized.append({
+                "id": f"{strat['id']}_stopped",
+                "type": "strategy_stopped",
+                "news_id": news_id,
+                "timestamp": strat["stopped_at"],
+                "data": {
+                    "strategy_id": strat["id"],
+                    "reason": strat.get("stop_reason", "completed"),
+                    "pnl": strat.get("pnl"),
+                }
+            })
+
+    # Sort by timestamp
+    synthesized.sort(key=lambda e: e.get("timestamp") or "")
+
+    return {"events": synthesized}
 
 
 @app.get("/news", response_model=List[NewsEvent])

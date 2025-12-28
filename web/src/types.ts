@@ -182,6 +182,7 @@ export interface NewsEvent {
   headline: string
   tickers: string[]
   pub_time?: string
+  received_at?: string  // When we received/processed the news
   decision?: string
   skip_reason?: string
   strategies_spawned: number

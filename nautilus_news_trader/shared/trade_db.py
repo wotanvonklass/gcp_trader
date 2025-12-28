@@ -536,6 +536,7 @@ class TradeDatabase:
                         tickers,
                         source,
                         pub_time,
+                        processed_at,
                         decision,
                         skip_reason,
                         strategies_spawned,
@@ -555,6 +556,7 @@ class TradeDatabase:
                         "tickers": json.loads(row["tickers"]) if row["tickers"] else [],
                         "source": row["source"],
                         "pub_time": row["pub_time"],
+                        "received_at": row["processed_at"],  # When we received/processed the news
                         "decision": row["decision"],
                         "skip_reason": row["skip_reason"],
                         "strategies_spawned": row["strategies_spawned"] or 0,

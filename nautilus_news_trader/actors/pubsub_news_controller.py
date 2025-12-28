@@ -428,9 +428,12 @@ class PubSubNewsController(Controller):
             # Store news event in database (initial insert)
             if self._trade_db and news_id:
                 pub_time_for_db = None
+                age_seconds_for_db = None
                 if pub_time_str:
                     try:
                         pub_time_for_db = datetime.fromisoformat(pub_time_str.replace('Z', '+00:00'))
+                        # Compute age at insertion time
+                        age_seconds_for_db = (datetime.now(timezone.utc) - pub_time_for_db).total_seconds()
                     except:
                         pass
                 self._trade_db.insert_news_event(
@@ -442,6 +445,7 @@ class PubSubNewsController(Controller):
                     tags=news_data.get('tags', []),
                     pub_time=pub_time_for_db,
                     captured_at=captured_at,
+                    age_seconds=age_seconds_for_db,
                 )
 
             if not tickers:
@@ -489,101 +493,37 @@ class PubSubNewsController(Controller):
                 emit_news_decision(news_id=news_id, decision='skip', skip_reason='too_many_tickers')
                 return
 
-            # Process each ticker
+            # Update news decision to 'trade'
+            if self._trade_db and news_id:
+                self._trade_db.update_news_decision(news_id=news_id, decision='trade')
+
+            # Emit trade decision event
+            emit_news_decision(news_id=news_id, decision='trade')
+
+            # Process each ticker - spawn strategies immediately, they get price from WebSocket
             for ticker in tickers:
                 # Clean ticker (remove exchange prefix if present)
                 symbol = ticker.split(':')[-1]
 
-                # Get current price from Polygon (volume check moved to strategies)
-                self.log.info(f"📊 [TRACE:{correlation_id}] Getting price for {symbol} from Polygon...")
-                current_price = self._get_polygon_quote(symbol)
-
-                if not current_price:
-                    self.log.warning(f"⚠️  [TRACE:{correlation_id}] Could not get Polygon quote for {symbol}, skipping")
-                    if self._trade_db and news_id:
-                        self._trade_db.update_news_decision(news_id, 'skip_no_price')
-                    emit_news_decision(news_id=news_id, decision='skip', skip_reason='no_price')
-                    continue
-
-                self.log.info(f"✅ [TRACE:{correlation_id}] Price for {symbol}: ${current_price:.2f}")
-
-                # Create price data for strategy spawning (volume check done in strategies)
+                # Minimal price data - strategy will get real price from WebSocket
                 price_data = {
                     'symbol': symbol,
-                    'volume': 0,  # Not checked here, strategies will check
-                    'avg_price': current_price,
-                    'last_price': current_price,
+                    'volume': 0,
+                    'avg_price': 0,  # Strategy gets price from WebSocket
+                    'last_price': 0,
                     'bars_count': 0,
                     'timestamp': datetime.now(timezone.utc)
                 }
 
-                # Update news decision to 'trade'
-                if self._trade_db and news_id:
-                    self._trade_db.update_news_decision(
-                        news_id=news_id,
-                        decision='trade',
-                        polygon_price=current_price,
-                    )
+                self.log.info(f"🚀 [TRACE:{correlation_id}] Spawning strategies for {symbol}")
 
-                # Emit trade decision event
-                emit_news_decision(
-                    news_id=news_id,
-                    decision='trade',
-                )
-
-                # Spawn strategy for this ticker (strategies will check volume themselves)
+                # Spawn strategy for this ticker (gets price/volume from WebSocket)
                 self._spawn_news_trading_strategy(symbol, 0, price_data, headline, pub_time, url, correlation_id, news_id)
 
         except Exception as e:
             self.log.error(f"❌ Error processing news event: {e}")
             import traceback
             self.log.error(f"Traceback: {traceback.format_exc()}")
-
-    def _get_polygon_quote(self, symbol: str) -> Optional[float]:
-        """Get current quote from Polygon for a symbol."""
-        try:
-            import requests
-
-            polygon_key = self._controller_config.polygon_api_key
-            if not polygon_key:
-                self.log.warning("Polygon API key not configured")
-                return None
-
-            # Get last trade from Polygon (most accurate current price)
-            url = f"https://api.polygon.io/v2/last/trade/{symbol}"
-            params = {'apiKey': polygon_key}
-
-            response = requests.get(url, params=params, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                results = data.get('results', {})
-                price = results.get('p')  # Last trade price
-                if price:
-                    return float(price)
-
-            # Fallback to last quote if no trade
-            quote_url = f"https://api.polygon.io/v3/quotes/{symbol}"
-            quote_params = {'apiKey': polygon_key, 'limit': 1, 'sort': 'timestamp', 'order': 'desc'}
-
-            quote_response = requests.get(quote_url, params=quote_params, timeout=5)
-            if quote_response.status_code == 200:
-                quote_data = quote_response.json()
-                results = quote_data.get('results', [])
-                if results:
-                    # Use ask price for buy orders
-                    ask_price = results[0].get('ask_price')
-                    if ask_price:
-                        return float(ask_price)
-                    bid_price = results[0].get('bid_price')
-                    if bid_price:
-                        return float(bid_price)
-
-            self.log.warning(f"Polygon quote request failed: {response.status_code}")
-            return None
-
-        except Exception as e:
-            self.log.error(f"Error getting Polygon quote: {e}")
-            return None
 
     def _check_polygon_trading(self, symbol: str, correlation_id: str = "") -> Optional[dict]:
         """Check if there has been trading activity on Polygon in last 3 seconds."""
