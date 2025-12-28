@@ -493,62 +493,45 @@ class PubSubNewsController(Controller):
                     emit_news_decision(news_id=news_id, decision='skip', skip_reason='position_exists')
                     continue
 
-                # For test news (with [TEST] in headline), skip Polygon check and use mock data
-                if '[TEST]' in headline:
-                    self.log.info(f"🧪 [TRACE:{correlation_id}] TEST NEWS detected - using mock volume data")
-                    # Fetch real price from Polygon for test orders to actually fill
-                    test_price = self._get_polygon_quote(symbol)
-                    if not test_price:
-                        self.log.warning(f"⚠️  [TRACE:{correlation_id}] Could not get Polygon quote for {symbol}, using fallback $100")
-                        test_price = 100.00
-                    self.log.info(f"🧪 [TRACE:{correlation_id}] Using real price from Polygon: ${test_price:.2f}")
-                    volume_data = {
-                        'symbol': symbol,
-                        'volume': 10000,  # Mock volume
-                        'avg_price': test_price,  # Real price from Polygon
-                        'last_price': test_price,
-                        'bars_count': 3,
-                        'timestamp': datetime.now(timezone.utc)
-                    }
-                else:
-                    # Check Polygon for trading activity
-                    self.log.info(f"📊 [TRACE:{correlation_id}] Checking {symbol} on Polygon...")
-                    volume_data = self._check_polygon_trading(symbol, correlation_id)
+                # Get current price from Polygon (volume check moved to strategies)
+                self.log.info(f"📊 [TRACE:{correlation_id}] Getting price for {symbol} from Polygon...")
+                current_price = self._get_polygon_quote(symbol)
 
-                    if not volume_data:
-                        self.log.info(f"⏭️  [TRACE:{correlation_id}] DECISION: Skip {symbol} - no trading activity in last 3s")
-                        if self._trade_db and news_id:
-                            self._trade_db.update_news_decision(news_id, 'skip_no_volume')
-                        emit_news_decision(news_id=news_id, decision='skip', skip_reason='no_volume')
-                        continue
-
-                self.log.info(f"✅ [TRACE:{correlation_id}] Trading detected: {volume_data['volume']:,.0f} shares @ ${volume_data['last_price']:.2f}")
-
-                # Calculate position size
-                position_size = self._calculate_position_size(volume_data, correlation_id)
-
-                if position_size == 0:
+                if not current_price:
+                    self.log.warning(f"⚠️  [TRACE:{correlation_id}] Could not get Polygon quote for {symbol}, skipping")
+                    if self._trade_db and news_id:
+                        self._trade_db.update_news_decision(news_id, 'skip_no_price')
+                    emit_news_decision(news_id=news_id, decision='skip', skip_reason='no_price')
                     continue
 
-                # Update news decision to 'trade' with polygon data
+                self.log.info(f"✅ [TRACE:{correlation_id}] Price for {symbol}: ${current_price:.2f}")
+
+                # Create price data for strategy spawning (volume check done in strategies)
+                price_data = {
+                    'symbol': symbol,
+                    'volume': 0,  # Not checked here, strategies will check
+                    'avg_price': current_price,
+                    'last_price': current_price,
+                    'bars_count': 0,
+                    'timestamp': datetime.now(timezone.utc)
+                }
+
+                # Update news decision to 'trade'
                 if self._trade_db and news_id:
                     self._trade_db.update_news_decision(
                         news_id=news_id,
                         decision='trade',
-                        polygon_volume=int(volume_data['volume']),
-                        polygon_price=volume_data['last_price'],
-                        polygon_bars=volume_data['bars_count'],
+                        polygon_price=current_price,
                     )
 
                 # Emit trade decision event
                 emit_news_decision(
                     news_id=news_id,
                     decision='trade',
-                    volume_found=volume_data['volume'],
                 )
 
-                # Spawn strategy for this ticker
-                self._spawn_news_trading_strategy(symbol, position_size, volume_data, headline, pub_time, url, correlation_id, news_id)
+                # Spawn strategy for this ticker (strategies will check volume themselves)
+                self._spawn_news_trading_strategy(symbol, 0, price_data, headline, pub_time, url, correlation_id, news_id)
 
         except Exception as e:
             self.log.error(f"❌ Error processing news event: {e}")
@@ -765,26 +748,14 @@ class PubSubNewsController(Controller):
             from strategies.news_trend_strategy import NewsTrendStrategy, NewsTrendStrategyConfig
             from decimal import Decimal
 
-            # Calculate USD volume once for all strategies
-            usd_volume = volume_data['volume'] * volume_data['avg_price']
-
             self.log.info(f"   🚀 [TRACE:{correlation_id}] SPAWNING {len(self._strategies)} STRATEGIES for {ticker}")
-            self.log.info(f"      [TRACE:{correlation_id}] USD Volume: ${usd_volume:,.2f}")
             self.log.info(f"      [TRACE:{correlation_id}] Entry price: ${volume_data['last_price']:.2f}")
+            self.log.info(f"      [TRACE:{correlation_id}] Volume check delegated to strategies")
 
             # Spawn a strategy for each StrategySpec
             for spec in self._strategies:
-                # Calculate position size for this strategy's volume percentage
-                spec_position_size = usd_volume * spec.volume_percentage
-
-                # Apply limits
-                if spec_position_size < spec.min_position_size:
-                    self.log.info(f"      [TRACE:{correlation_id}] {spec.name}: Skip - ${spec_position_size:.2f} < min ${spec.min_position_size}")
-                    continue
-
-                if spec_position_size > spec.max_position_size:
-                    self.log.info(f"      [TRACE:{correlation_id}] {spec.name}: Cap ${spec_position_size:.2f} → ${spec.max_position_size}")
-                    spec_position_size = spec.max_position_size
+                # Use max position size as starting point - strategies will calculate actual size from volume
+                spec_position_size = spec.max_position_size
 
                 spec_correlation_id = f"{correlation_id}_{spec.name}"
 
