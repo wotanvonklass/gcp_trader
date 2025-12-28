@@ -61,6 +61,7 @@ import uvicorn
 import requests
 
 from shared.trade_db import get_trade_db
+from utils.alpaca_health import check_trade_updates_proxy
 
 
 # ==============================================================================
@@ -391,7 +392,7 @@ class LatencyResponse(BaseModel):
 class SkipAnalysis(BaseModel):
     period: str
     total: int
-    traded: int
+    triggered: int
     skipped: int
     by_reason: List[Dict[str, Any]]
     near_misses: List[Dict[str, Any]]
@@ -481,6 +482,17 @@ async def detailed_health(x_api_key: Optional[str] = Header(None, alias="X-API-K
     except Exception as e:
         db_status = f"error: {str(e)}"
 
+    # Check trade updates proxy connectivity
+    trade_proxy_result = check_trade_updates_proxy()
+    trade_proxy_status = {
+        "status": "healthy" if trade_proxy_result['healthy'] else "error",
+        "url": trade_proxy_result['proxy_url'],
+    }
+    if trade_proxy_result['healthy']:
+        trade_proxy_status["response_time_ms"] = trade_proxy_result['response_time_ms']
+    else:
+        trade_proxy_status["error"] = trade_proxy_result['error']
+
     return {
         "status": "ok",
         "uptime_seconds": uptime,
@@ -496,6 +508,7 @@ async def detailed_health(x_api_key: Optional[str] = Header(None, alias="X-API-K
                 "buffer_size": len(event_store.events),
                 "max_size": MAX_EVENTS,
             },
+            "trade_updates_proxy": trade_proxy_status,
         },
     }
 
@@ -544,7 +557,7 @@ async def get_news_events(
 @app.get("/news", response_model=List[NewsEvent])
 async def list_news(
     limit: int = Query(default=100, ge=1, le=1000),
-    traded_only: bool = Query(default=False),
+    triggered_only: bool = Query(default=False),
     from_date: Optional[str] = Query(default=None, description="Start date (ISO format or 'today')"),
     to_date: Optional[str] = Query(default=None, description="End date (ISO format)"),
     symbol: Optional[str] = Query(default=None, description="Filter by ticker symbol"),
@@ -555,7 +568,7 @@ async def list_news(
     db = get_trade_db(DB_PATH)
     events = db.fetch_news_events_json(
         limit=limit,
-        traded_only=traded_only,
+        triggered_only=triggered_only,
         from_date=from_date,
         to_date=to_date,
         symbol=symbol,
@@ -828,7 +841,7 @@ async def event_stream(
                 # Load from database if in-memory is empty (e.g., after restart)
                 try:
                     db = get_trade_db(DB_PATH)
-                    db_news = db.fetch_news_events_json(limit=50, traded_only=False)
+                    db_news = db.fetch_news_events_json(limit=50, triggered_only=False)
                     # Convert database news to PipelineEvent format
                     for news in reversed(db_news):  # Oldest first
                         event = {
@@ -1111,8 +1124,8 @@ async def get_skip_analysis(
     summary = db.get_news_summary(days=days)
 
     total = summary.get("total_news", 0)
-    traded = summary.get("traded", 0)
-    skipped = total - traded
+    triggered = summary.get("triggered", 0)
+    skipped = total - triggered
 
     by_reason = []
     for reason in ["skip_no_tickers", "skip_no_volume", "skip_too_old", "skip_position_exists"]:
@@ -1127,7 +1140,7 @@ async def get_skip_analysis(
     return {
         "period": f"{days} day(s)",
         "total": total,
-        "traded": traded,
+        "triggered": triggered,
         "skipped": skipped,
         "by_reason": by_reason,
         "near_misses": [],  # Would need additional query to find near misses
@@ -1216,7 +1229,7 @@ async def get_summary_stats(
     pnl_summary = db.get_pnl_summary(days=days)
 
     total_news = news_summary.get("total_news", 0) or 0
-    traded = news_summary.get("traded", 0) or 0
+    triggered = news_summary.get("triggered", 0) or 0
     total_strategies = news_summary.get("total_strategies", 0) or 0
     active_count = len(event_store.active_strategies)
     closed = max(0, total_strategies - active_count)
@@ -1232,9 +1245,9 @@ async def get_summary_stats(
         "period": f"{days} day(s)",
         "news": {
             "total": total_news,
-            "traded": traded,
-            "traded_percent": (traded / total_news * 100) if total_news > 0 else 0,
-            "skipped": total_news - traded,
+            "triggered": triggered,
+            "triggered_percent": (triggered / total_news * 100) if total_news > 0 else 0,
+            "skipped": total_news - triggered,
             "pending": 0,
             "skip_reasons": news_summary.get("skip_reasons", {}),
         },

@@ -12,6 +12,9 @@ pandas>=2.0.0
 fastapi>=0.109.0
 uvicorn>=0.27.0
 
+# WebSocket client for health checks
+websockets>=12.0
+
 # NautilusTrader (private fork with Alpaca execution adapters)
 # Installed from source: /opt/nautilus_trader_private
 # Build command: cd /opt/nautilus_trader_private && make install
