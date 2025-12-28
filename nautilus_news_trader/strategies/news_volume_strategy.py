@@ -161,7 +161,7 @@ class NewsVolumeStrategy(Strategy):
         self.catchup_since_ms: Optional[int] = None  # Timestamp for bar replay
         self.catchup_bar_count = 0
         self.catchup_volume = 0  # Total volume from catch-up bars
-        self.catchup_vwap_sum = 0.0  # For VWAP calculation
+        self.catchup_last_close = 0.0  # Last bar close price (used for entry)
         self.live_bar_count = 0
         self.bar_type: Optional[BarType] = None
         self.entry_decision_made = False  # Prevent duplicate entry attempts
@@ -245,11 +245,11 @@ class NewsVolumeStrategy(Strategy):
 
         if is_catchup:
             self.catchup_bar_count += 1
-            # Accumulate volume and VWAP data
+            # Accumulate volume and track last close price
             bar_volume = int(bar.volume)
             bar_close = float(bar.close)
             self.catchup_volume += bar_volume
-            self.catchup_vwap_sum += bar_volume * bar_close
+            self.catchup_last_close = bar_close  # Always use most recent bar close
 
             self.log.debug(
                 f"   [TRACE:{trace_id}] CATCHUP bar #{self.catchup_bar_count}: "
@@ -293,7 +293,6 @@ class NewsVolumeStrategy(Strategy):
     def _on_status_timer(self, event):
         """Log full status every 10 seconds."""
         trace_id = self._config.correlation_id
-        catchup_vwap = self.catchup_vwap_sum / self.catchup_volume if self.catchup_volume > 0 else 0
 
         # Position status
         if self.entry_filled:
@@ -315,7 +314,7 @@ class NewsVolumeStrategy(Strategy):
         self.log.info(f"📈 [TRACE:{trace_id}] STATUS [{pos_status}] {self.ticker}:{exit_remaining}")
         self.log.info(f"   [TRACE:{trace_id}]   Bars: {self.catchup_bar_count} catchup + {self.live_bar_count} live")
         self.log.info(f"   [TRACE:{trace_id}]   Volume: {self.catchup_volume:,} (min: {self._config.min_catchup_volume:,})")
-        self.log.info(f"   [TRACE:{trace_id}]   VWAP: ${catchup_vwap:.4f} | Last: ${self.last_trade_price or 0:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   Last close: ${self.catchup_last_close:.4f} | Live: ${self.last_trade_price or 0:.4f}")
 
     def _check_volume_and_enter(self):
         """Check catch-up volume and enter if sufficient."""
@@ -325,12 +324,9 @@ class NewsVolumeStrategy(Strategy):
 
         trace_id = self._config.correlation_id
 
-        # Calculate VWAP from catch-up bars
-        vwap = self.catchup_vwap_sum / self.catchup_volume if self.catchup_volume > 0 else 0
-
         self.log.info(
             f"📊 [TRACE:{trace_id}] CATCH-UP COMPLETE: "
-            f"{self.catchup_bar_count} bars, {self.catchup_volume:,} shares, VWAP=${vwap:.2f}"
+            f"{self.catchup_bar_count} bars, {self.catchup_volume:,} shares, last=${self.catchup_last_close:.2f}"
         )
 
         # Check minimum volume threshold
@@ -346,12 +342,12 @@ class NewsVolumeStrategy(Strategy):
             f"✅ [TRACE:{trace_id}] Volume OK: {self.catchup_volume:,} >= {min_volume:,}"
         )
 
-        # Use VWAP from catch-up bars (more accurate than controller's REST API price)
-        if vwap > 0:
-            self.log.info(f"   [TRACE:{trace_id}] Using VWAP ${vwap:.2f} for entry (was ${self._config.entry_price})")
+        # Use last bar close price (most current price from catch-up window)
+        entry_price = self.catchup_last_close if self.catchup_last_close > 0 else float(self._config.entry_price)
+        self.log.info(f"   [TRACE:{trace_id}] Using last bar close ${entry_price:.2f} for entry")
 
         # Place entry order
-        self._place_entry_order_with_price(vwap if vwap > 0 else float(self._config.entry_price))
+        self._place_entry_order_with_price(entry_price)
 
     def _place_entry_order_with_price(self, entry_price: float):
         """Place limit buy order with given price."""
@@ -1015,11 +1011,10 @@ class NewsVolumeStrategy(Strategy):
         self.log.info(f"🛑 [TRACE:{trace_id}] NewsVolumeStrategy stopping for {self.ticker}")
 
         # Log final indicator values for comparison with historical fetch
-        catchup_vwap = self.catchup_vwap_sum / self.catchup_volume if self.catchup_volume > 0 else 0
         self.log.info(f"📊 [TRACE:{trace_id}] FINAL INDICATORS (for comparison):")
         self.log.info(f"   [TRACE:{trace_id}]   Catchup bars: {self.catchup_bar_count}")
         self.log.info(f"   [TRACE:{trace_id}]   Catchup volume: {self.catchup_volume:,}")
-        self.log.info(f"   [TRACE:{trace_id}]   VWAP: ${catchup_vwap:.4f}")
+        self.log.info(f"   [TRACE:{trace_id}]   Last close: ${self.catchup_last_close:.4f}")
         self.log.info(f"   [TRACE:{trace_id}]   Final price: ${self.last_trade_price or 0:.4f}")
 
         # Cancel status logging timer
