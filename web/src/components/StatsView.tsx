@@ -139,9 +139,9 @@ export function StatsView() {
             </div>
           </div>
           <div>
-            <div className="text-sm text-gray-400">Traded</div>
+            <div className="text-sm text-gray-400">Triggered</div>
             <div className="mt-1 text-xl font-bold text-green-400">
-              {stats.news.traded} ({formatPercent(stats.news.traded_percent)})
+              {stats.news.triggered} ({formatPercent(stats.news.triggered_percent)})
             </div>
           </div>
           <div>

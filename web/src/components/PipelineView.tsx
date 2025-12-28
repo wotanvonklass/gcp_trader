@@ -3,10 +3,10 @@
  * Shows chart with price action and indicators for any news event.
  */
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { usePakoStore } from '../store'
-import { getNewsEvents, getNewsStrategies, getNewsDetail, getMarketBars } from '../api'
+import { useTorbiStore } from '../store'
+import { getNewsEvents, getNewsStrategies, getNewsDetail, getMarketBars, getMarketBarsMs } from '../api'
 import {
   formatTime,
   formatCurrency,
@@ -17,15 +17,19 @@ import {
 import type { PipelineEvent, StrategyExecution, OHLCVBar } from '../types'
 import { Breadcrumbs } from './Breadcrumbs'
 import { TradingChart } from './TradingChart'
-import {
-  calculateEMAs,
-  calculateTrendStrength,
-  calculateVWAP,
-  findBarIndexByTime,
-} from '../indicators'
 
 // Timeframe options
-const TIMEFRAMES = [
+interface TimeframeOption {
+  label: string
+  timeframe?: string
+  timespan?: string
+  intervalMs?: number
+}
+
+const TIMEFRAMES: TimeframeOption[] = [
+  { label: '100ms', intervalMs: 100 },
+  { label: '250ms', intervalMs: 250 },
+  { label: '500ms', intervalMs: 500 },
   { label: '1s', timeframe: '1', timespan: 'second' },
   { label: '5s', timeframe: '5', timespan: 'second' },
   { label: '15s', timeframe: '15', timespan: 'second' },
@@ -47,8 +51,7 @@ interface NewsItemDisplay {
 export function PipelineView() {
   const { newsId } = useParams<{ newsId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { setSelectedNewsId, getFeedItemsArray } = usePakoStore()
-  const feedItems = getFeedItemsArray()
+  const { setSelectedNewsId } = useTorbiStore()
 
   const [events, setEvents] = useState<PipelineEvent[]>([])
   const [strategies, setStrategies] = useState<StrategyExecution[]>([])
@@ -60,9 +63,29 @@ export function PipelineView() {
   const [bars, setBars] = useState<OHLCVBar[]>([])
   const [barsLoading, setBarsLoading] = useState(false)
 
-  // Get timeframe from URL or default to '1s'
+  // Get timeframe and ticker from URL
   const tfParam = searchParams.get('tf') || '1s'
   const currentTf = TIMEFRAMES.find((t) => t.label === tfParam) || TIMEFRAMES[0]
+  const tickerParam = searchParams.get('ticker')
+
+  // Selected ticker from URL or first ticker
+  const selectedTicker = tickerParam || newsDetail?.tickers?.[0] || null
+
+  // Set default ticker in URL when news loads (if not already set)
+  useEffect(() => {
+    if (newsDetail?.tickers?.length && !tickerParam) {
+      const newParams = new URLSearchParams(searchParams)
+      newParams.set('ticker', newsDetail.tickers[0])
+      setSearchParams(newParams, { replace: true })
+    }
+  }, [newsDetail?.tickers, tickerParam, searchParams, setSearchParams])
+
+  // Handle ticker change
+  const handleTickerChange = (ticker: string) => {
+    const newParams = new URLSearchParams(searchParams)
+    newParams.set('ticker', ticker)
+    setSearchParams(newParams)
+  }
 
   // Sync URL param with store
   useEffect(() => {
@@ -99,25 +122,15 @@ export function PipelineView() {
               tickers: detail.tickers,
               source: detail.source,
               news_age_ms: detail.news_age_ms,
-              status: detail.decision === 'trade' ? 'traded' : 'skipped',
+              status: detail.decision === 'trade' ? 'triggered' : 'skipped',
               pub_time: detail.pub_time,
               skip_reason: skipReason,
             })
           }
         } catch {
-          // News not found in API - try store as fallback
-          const storeItem = feedItems.find((item) => item.news_id === newsId)
-          if (!cancelled && storeItem) {
-            setNewsDetail({
-              news_id: storeItem.news_id,
-              headline: storeItem.headline,
-              tickers: storeItem.tickers,
-              source: storeItem.source,
-              news_age_ms: storeItem.news_age_ms,
-              status: storeItem.status,
-              pub_time: storeItem.pub_time,
-              skip_reason: storeItem.skip_reason,
-            })
+          // News not found in API
+          if (!cancelled) {
+            setError('News event not found')
           }
         }
 
@@ -146,15 +159,14 @@ export function PipelineView() {
     }
   }, [newsId]) // Only depend on newsId, not feedItems
 
-  // Fetch bars when newsDetail or timeframe changes
+  // Fetch bars when selectedTicker or timeframe changes
   useEffect(() => {
-    // Need at least one ticker and a pub_time
-    if (!newsDetail?.tickers?.length || !newsDetail?.pub_time) {
+    // Need a selected ticker and a pub_time
+    if (!selectedTicker || !newsDetail?.pub_time) {
       setBars([])
       return
     }
 
-    const ticker = newsDetail.tickers[0] // Use first ticker
     const pubTime = newsDetail.pub_time
 
     const fetchBars = async () => {
@@ -165,13 +177,25 @@ export function PipelineView() {
         const fromTs = newsTime - 2 * 60 * 1000
         const toTs = newsTime + 10 * 60 * 1000
 
-        const data = await getMarketBars(
-          ticker,
-          fromTs,
-          toTs,
-          currentTf.timeframe,
-          currentTf.timespan
-        )
+        let data
+        if (currentTf.intervalMs) {
+          // Use millisecond bars endpoint
+          data = await getMarketBarsMs(
+            selectedTicker,
+            fromTs,
+            toTs,
+            currentTf.intervalMs
+          )
+        } else {
+          // Use standard bars endpoint
+          data = await getMarketBars(
+            selectedTicker,
+            fromTs,
+            toTs,
+            currentTf.timeframe!,
+            currentTf.timespan!
+          )
+        }
         setBars(data.results || [])
       } catch (err) {
         console.error('Failed to fetch bars:', err)
@@ -181,41 +205,7 @@ export function PipelineView() {
     }
 
     fetchBars()
-  }, [newsDetail, currentTf])
-
-  // Calculate indicators from bars
-  const indicators = useMemo(() => {
-    if (bars.length < 10 || !newsDetail?.pub_time) return null
-
-    const emas = calculateEMAs(bars, [8, 21, 55])
-    const newsTime = new Date(newsDetail.pub_time).getTime()
-    const newsBarIndex = findBarIndexByTime(bars, newsTime)
-
-    // Get values at news time
-    const atNewsTime = newsBarIndex >= 0 && newsBarIndex < bars.length ? {
-      price: bars[newsBarIndex].c,
-      ema8: emas[8][newsBarIndex],
-      ema21: emas[21][newsBarIndex],
-      ema55: emas[55][newsBarIndex],
-      trendStrength: calculateTrendStrength(emas[8], emas[21], emas[55], newsBarIndex),
-      vwap: calculateVWAP(bars.slice(0, newsBarIndex + 1)),
-      volume: bars.slice(0, newsBarIndex + 1).reduce((sum, b) => sum + b.v, 0),
-    } : null
-
-    // Get current (latest) values
-    const lastIdx = bars.length - 1
-    const current = {
-      price: bars[lastIdx].c,
-      ema8: emas[8][lastIdx],
-      ema21: emas[21][lastIdx],
-      ema55: emas[55][lastIdx],
-      trendStrength: calculateTrendStrength(emas[8], emas[21], emas[55], lastIdx),
-      vwap: calculateVWAP(bars),
-      volume: bars.reduce((sum, b) => sum + b.v, 0),
-    }
-
-    return { atNewsTime, current }
-  }, [bars, newsDetail])
+  }, [selectedTicker, newsDetail?.pub_time, currentTf])
 
   // Change timeframe
   const handleTimeframeChange = (tf: string) => {
@@ -232,48 +222,12 @@ export function PipelineView() {
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-white">Select a News Event</h2>
         <p className="text-gray-400">
-          Click on a news item in the Live Feed to see its detailed pipeline.
+          Click on a news item in the{' '}
+          <Link to="/" className="text-blue-400 hover:underline">
+            News feed
+          </Link>{' '}
+          to see its detailed pipeline.
         </p>
-
-        {/* Recent events list for quick selection */}
-        <div className="mt-6">
-          <h3 className="mb-3 text-sm font-medium text-gray-400">
-            Recent News Events
-          </h3>
-          <div className="space-y-2">
-            {feedItems.slice(0, 10).map((item) => (
-              <Link
-                key={item.news_id}
-                to={`/pipeline/${item.news_id}`}
-                className="block w-full rounded-lg border border-slate-700 bg-slate-800 p-3 text-left hover:border-blue-500/50"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-white">
-                    {item.headline.slice(0, 60)}...
-                  </span>
-                  <span
-                    className={`text-xs ${
-                      item.status === 'traded'
-                        ? 'text-green-400'
-                        : item.status === 'processing'
-                        ? 'text-yellow-400'
-                        : 'text-gray-500'
-                    }`}
-                  >
-                    {item.status}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                  {item.tickers.map((t) => (
-                    <span key={t} className="text-blue-400">
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
       </div>
     )
   }
@@ -348,7 +302,7 @@ export function PipelineView() {
             <span>|</span>
             <span
               className={
-                selectedItem.status === 'traded'
+                selectedItem.status === 'triggered'
                   ? 'text-green-400'
                   : selectedItem.status === 'processing'
                   ? 'text-yellow-400'
@@ -371,13 +325,32 @@ export function PipelineView() {
         </div>
       )}
 
-      {/* Chart Section */}
+      {/* Chart Section with Ticker Tabs */}
       {selectedItem && selectedItem.tickers && selectedItem.tickers.length > 0 && (
         <div className="space-y-3">
+          {/* Ticker Tabs */}
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-400">
-              Price Action - {selectedItem.tickers[0]}
-            </h3>
+            <div className="flex items-center gap-1">
+              {selectedItem.tickers.map((ticker) => {
+                const hasStrategy = strategies.some((s) => s.ticker === ticker)
+                return (
+                  <button
+                    key={ticker}
+                    onClick={() => handleTickerChange(ticker)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                      selectedTicker === ticker
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    {ticker}
+                    {hasStrategy && (
+                      <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-green-400" title="Has trade" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">Timeframe:</span>
               {TIMEFRAMES.map((tf) => (
@@ -398,105 +371,28 @@ export function PipelineView() {
               )}
             </div>
           </div>
-          {bars.length > 0 ? (
-            <TradingChart
-              bars={bars}
-              ticker={selectedItem.tickers[0]}
-              newsTime={selectedItem.pub_time ? new Date(selectedItem.pub_time).getTime() : undefined}
-              entryTime={
-                strategies.length > 0 && strategies[0].started_at
-                  ? new Date(strategies[0].started_at).getTime()
-                  : undefined
-              }
-              entryPrice={strategies.length > 0 ? strategies[0].entry_price : undefined}
-              exitTime={
-                strategies.length > 0 && strategies[0].stopped_at
-                  ? new Date(strategies[0].stopped_at).getTime()
-                  : undefined
-              }
-              exitPrice={strategies.length > 0 ? strategies[0].exit_price : undefined}
-            />
-          ) : (
+          {/* Chart - shows price action around news time */}
+          {(() => {
+            // Find news_received event timestamp
+            const receivedEvent = events.find((e) => e.type === 'news_received')
+            const receivedTime = receivedEvent ? new Date(receivedEvent.timestamp).getTime() : undefined
+
+            return bars.length > 0 ? (
+              <TradingChart
+                bars={bars}
+                ticker={selectedTicker || selectedItem.tickers[0]}
+                newsTime={selectedItem.pub_time ? new Date(selectedItem.pub_time).getTime() : undefined}
+                receivedTime={receivedTime}
+              />
+            ) : null
+          })()}
+          {bars.length === 0 && (
             <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
               <p className="text-gray-400">
                 {barsLoading ? 'Loading chart data...' : 'No chart data available for this time period'}
               </p>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Indicators Panel */}
-      {indicators && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Indicators at News Time */}
-          {indicators.atNewsTime && (
-            <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
-              <h4 className="mb-3 text-sm font-medium text-gray-400">
-                At News Time
-              </h4>
-              <div className="space-y-2 text-sm">
-                <IndicatorRow label="Price" value={`$${indicators.atNewsTime.price.toFixed(4)}`} />
-                <IndicatorRow
-                  label="EMA8"
-                  value={`$${indicators.atNewsTime.ema8.toFixed(4)}`}
-                  color="text-yellow-400"
-                />
-                <IndicatorRow
-                  label="EMA21"
-                  value={`$${indicators.atNewsTime.ema21.toFixed(4)}`}
-                  color="text-cyan-400"
-                />
-                <IndicatorRow
-                  label="EMA55"
-                  value={`$${indicators.atNewsTime.ema55.toFixed(4)}`}
-                  color="text-fuchsia-400"
-                />
-                <div className="border-t border-slate-700 pt-2 mt-2">
-                  <IndicatorRow
-                    label="Trend Strength"
-                    value={`${indicators.atNewsTime.trendStrength.toFixed(1)}`}
-                    color={indicators.atNewsTime.trendStrength >= 60 ? 'text-green-400' : 'text-gray-400'}
-                  />
-                  <IndicatorRow label="VWAP" value={`$${indicators.atNewsTime.vwap.toFixed(4)}`} />
-                  <IndicatorRow label="Volume" value={formatVolume(indicators.atNewsTime.volume)} />
-                </div>
-              </div>
-            </div>
-          )}
-          {/* Current/Latest Indicators */}
-          <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
-            <h4 className="mb-3 text-sm font-medium text-gray-400">
-              Latest Values
-            </h4>
-            <div className="space-y-2 text-sm">
-              <IndicatorRow label="Price" value={`$${indicators.current.price.toFixed(4)}`} />
-              <IndicatorRow
-                label="EMA8"
-                value={`$${indicators.current.ema8.toFixed(4)}`}
-                color="text-yellow-400"
-              />
-              <IndicatorRow
-                label="EMA21"
-                value={`$${indicators.current.ema21.toFixed(4)}`}
-                color="text-cyan-400"
-              />
-              <IndicatorRow
-                label="EMA55"
-                value={`$${indicators.current.ema55.toFixed(4)}`}
-                color="text-fuchsia-400"
-              />
-              <div className="border-t border-slate-700 pt-2 mt-2">
-                <IndicatorRow
-                  label="Trend Strength"
-                  value={`${indicators.current.trendStrength.toFixed(1)}`}
-                  color={indicators.current.trendStrength >= 60 ? 'text-green-400' : 'text-gray-400'}
-                />
-                <IndicatorRow label="VWAP" value={`$${indicators.current.vwap.toFixed(4)}`} />
-                <IndicatorRow label="Volume" value={formatVolume(indicators.current.volume)} />
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

@@ -1,16 +1,18 @@
 /**
  * News View - Unified news feed with date filtering.
- * Combines live SSE stream for "today" with historical data from API.
+ * Uses polling to fetch news from API (no SSE).
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { usePakoStore } from '../store'
-import { getNews, getNewsEvents, getSummaryStats } from '../api'
+import { useTorbiStore } from '../store'
+import { getNews, getNewsEvents, getSummaryStats, getActiveStrategies } from '../api'
 import { formatRelativeTime, formatCurrency } from '../utils'
 import { NewsCard, FilterBar, SkipReasonsPanel, computeSkipReasons } from './shared'
 import type { StatusFilter } from './shared'
 import type { NewsEvent, PipelineStep } from '../types'
+
+const POLL_INTERVAL = 10000 // 10 seconds
 
 // Date filter options
 type DateFilter = 'today' | 'yesterday' | 'week' | 'all'
@@ -110,37 +112,30 @@ function getDateString(filter: DateFilter): string | undefined {
 
 export function NewsView() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const {
-    connected,
-    lastEventTime,
-    paused,
-    soundEnabled,
-    setPaused,
-    setSoundEnabled,
-    clearEvents,
-    getFeedItemsArray,
-    getPipelineSteps,
-    summaryStats,
-    setSummaryStats,
-  } = usePakoStore()
+  const { summaryStats, setSummaryStats, setActiveStrategies } = useTorbiStore()
 
-  // Historical news state
-  const [historicalNews, setHistoricalNews] = useState<NewsEvent[]>([])
+  // News state
+  const [news, setNews] = useState<NewsEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
-  // Pipeline expansion state (for historical items)
+  // Pipeline expansion state
   const [expandedPipelines, setExpandedPipelines] = useState<Map<string, PipelineStep[]>>(new Map())
   const [loadingPipelines, setLoadingPipelines] = useState<Set<string>>(new Set())
+
+  // Polling state
+  const [isPaused, setIsPaused] = useState(false)
+  const pollIntervalRef = useRef<number | null>(null)
 
   // Read filters from URL
   const dateFilter = (searchParams.get('date') as DateFilter) || 'today'
   const statusFilter = (searchParams.get('filter') as StatusFilter) || 'all'
   const symbolFilter = searchParams.get('symbol') || ''
+  const hideNoTickers = searchParams.get('hideNoTickers') !== 'false' // default true
 
-  // Check if using live data (today filter)
-  const useLiveData = dateFilter === 'today'
-  const feedItems = getFeedItemsArray()
+  // Is this a live view (today)?
+  const isLiveView = dateFilter === 'today'
 
   // Update URL when filters change
   const setDateFilter = (newFilter: DateFilter) => {
@@ -173,52 +168,76 @@ export function NewsView() {
     setSearchParams(params)
   }
 
-  // Fetch historical news when not using live data
-  useEffect(() => {
-    if (useLiveData) {
-      setHistoricalNews([])
-      return
+  const setHideNoTickers = (hide: boolean) => {
+    const params = new URLSearchParams(searchParams)
+    if (hide) {
+      params.delete('hideNoTickers') // default is true
+    } else {
+      params.set('hideNoTickers', 'false')
     }
+    setSearchParams(params)
+  }
 
-    const fetchNews = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const fromDate = getDateString(dateFilter)
-        const toDate = dateFilter === 'yesterday' ? fromDate : undefined
+  // Fetch news from API
+  const fetchNews = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true)
+    setError(null)
+    try {
+      const fromDate = getDateString(dateFilter)
+      const toDate = dateFilter === 'yesterday' ? fromDate : undefined
 
-        const data = await getNews({
-          limit: 200,
-          from_date: fromDate,
-          to_date: toDate,
-          traded_only: statusFilter === 'traded',
-          symbol: symbolFilter || undefined,
-        })
+      const data = await getNews({
+        limit: 200,
+        from_date: fromDate,
+        to_date: toDate,
+        triggered_only: statusFilter === 'triggered',
+        symbol: symbolFilter || undefined,
+      })
 
-        // Apply client-side filter for skipped
-        let filteredData = data
-        if (statusFilter === 'skipped') {
-          filteredData = data.filter((n) => n.decision?.startsWith('skip'))
-        }
-
-        setHistoricalNews(filteredData)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch news')
+      // Apply client-side filter for skipped
+      let filteredData = data
+      if (statusFilter === 'skipped') {
+        filteredData = data.filter((n) => n.decision?.startsWith('skip'))
       }
-      setLoading(false)
+
+      setNews(filteredData)
+      setLastRefresh(new Date())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch news')
+    }
+    if (showLoading) setLoading(false)
+  }, [dateFilter, statusFilter, symbolFilter])
+
+  // Initial fetch and polling setup
+  useEffect(() => {
+    // Initial fetch
+    fetchNews(true)
+
+    // Setup polling for "today" view only
+    if (isLiveView && !isPaused) {
+      pollIntervalRef.current = window.setInterval(() => {
+        fetchNews(false) // Don't show loading on poll
+      }, POLL_INTERVAL)
     }
 
-    fetchNews()
-  }, [dateFilter, statusFilter, symbolFilter, useLiveData])
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [fetchNews, isLiveView, isPaused])
 
-  // Fetch summary stats periodically (for live mode)
+  // Fetch summary stats and active strategies periodically
   useEffect(() => {
-    if (!useLiveData) return
-
     const fetchStats = async () => {
       try {
-        const stats = await getSummaryStats(1)
+        const [stats, strategiesData] = await Promise.all([
+          getSummaryStats(1),
+          getActiveStrategies(),
+        ])
         setSummaryStats(stats)
+        setActiveStrategies(strategiesData.strategies)
       } catch (err) {
         console.error('Failed to fetch stats:', err)
       }
@@ -227,7 +246,7 @@ export function NewsView() {
     fetchStats()
     const interval = setInterval(fetchStats, 30000)
     return () => clearInterval(interval)
-  }, [useLiveData, setSummaryStats])
+  }, [setSummaryStats, setActiveStrategies])
 
   // Lazy load pipeline for a historical news item
   const handlePipelineExpand = useCallback(async (newsId: string) => {
@@ -253,33 +272,18 @@ export function NewsView() {
     })
   }, [expandedPipelines, loadingPipelines])
 
-  // Filter live feed items
-  const filteredLiveItems = feedItems.filter((item) => {
-    if (statusFilter === 'traded' && item.status !== 'traded') return false
-    if (statusFilter === 'skipped' && item.status !== 'skipped') return false
-    if (symbolFilter && !item.tickers.some((t) => t.toUpperCase().includes(symbolFilter.toUpperCase()))) {
-      return false
-    }
-    return true
-  })
+  // Filter news items
+  const filteredNews = hideNoTickers
+    ? news.filter((n) => n.tickers && n.tickers.length > 0)
+    : news
 
   // Compute stats
-  const items = useLiveData ? filteredLiveItems : historicalNews
-  const totalCount = items.length
-  const tradedCount = useLiveData
-    ? filteredLiveItems.filter((item) => item.status === 'traded').length
-    : historicalNews.filter((n) => n.decision === 'trade').length
-  const skippedCount = useLiveData
-    ? filteredLiveItems.filter((item) => item.status === 'skipped').length
-    : historicalNews.filter((n) => n.decision?.startsWith('skip')).length
+  const totalCount = filteredNews.length
+  const triggeredCount = filteredNews.filter((n) => n.decision === 'trade').length
+  const skippedCount = filteredNews.filter((n) => n.decision?.startsWith('skip')).length
 
   // Compute skip reasons
-  const skipReasons = useLiveData
-    ? computeSkipReasons(feedItems.map((item) => ({
-        decision: item.decision === 'skip' ? 'skip' : item.decision,
-        skip_reason: item.skip_reason,
-      })))
-    : computeSkipReasons(historicalNews)
+  const skipReasons = computeSkipReasons(filteredNews)
 
   // Update relative times
   const [, setTick] = useState(0)
@@ -289,15 +293,15 @@ export function NewsView() {
   }, [])
 
   // Determine status for historical items
-  const getNewsStatus = (item: NewsEvent): 'processing' | 'traded' | 'skipped' => {
-    if (item.decision === 'trade') return 'traded'
+  const getNewsStatus = (item: NewsEvent): 'processing' | 'triggered' | 'skipped' => {
+    if (item.decision === 'trade') return 'triggered'
     if (item.decision?.startsWith('skip')) return 'skipped'
     return 'processing'
   }
 
   return (
     <div className="space-y-4">
-      {/* Header with date filter and live controls */}
+      {/* Header with date filter and controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {/* Date filter pills */}
@@ -317,57 +321,41 @@ export function NewsView() {
             ))}
           </div>
 
-          {/* Live indicator (only when on Today) */}
-          {useLiveData && (
-            <span
-              className={`flex items-center gap-1.5 ${
-                connected ? 'text-red-400' : 'text-gray-500'
-              }`}
-            >
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  connected ? 'animate-pulse bg-red-500' : 'bg-gray-500'
-                }`}
-              ></span>
-              {connected ? 'LIVE' : 'OFFLINE'}
+          {/* Polling indicator (only when on Today) */}
+          {isLiveView && (
+            <span className="flex items-center gap-1.5 text-green-400">
+              <span className={`h-2 w-2 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
+              {isPaused ? 'PAUSED' : 'AUTO'}
             </span>
           )}
 
-          {useLiveData && (
-            <span className="text-sm text-gray-500">
-              Last: {formatRelativeTime(lastEventTime)}
-            </span>
-          )}
+          {/* Last refresh time */}
+          <span className="text-sm text-gray-500">
+            Last: {formatRelativeTime(lastRefresh?.toISOString() || null)}
+          </span>
         </div>
 
-        {/* Live controls (only when on Today) */}
-        {useLiveData && (
-          <div className="flex items-center gap-2">
+        {/* Controls */}
+        <div className="flex items-center gap-2">
+          {isLiveView && (
             <button
-              onClick={() => setPaused(!paused)}
+              onClick={() => setIsPaused(!isPaused)}
               className={`rounded-md px-3 py-1.5 text-sm ${
-                paused
+                isPaused
                   ? 'bg-yellow-600 text-white'
                   : 'bg-slate-700 hover:bg-slate-600'
               }`}
             >
-              {paused ? 'Resume' : 'Pause'}
+              {isPaused ? 'Resume' : 'Pause'}
             </button>
-            <button
-              onClick={clearEvents}
-              className="rounded-md bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600"
-            >
-              Clear
-            </button>
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className="rounded-md bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600"
-              title={soundEnabled ? 'Sound enabled' : 'Sound disabled'}
-            >
-              {soundEnabled ? '🔊' : '🔇'}
-            </button>
-          </div>
-        )}
+          )}
+          <button
+            onClick={() => fetchNews(true)}
+            className="rounded-md bg-slate-700 px-3 py-1.5 text-sm hover:bg-slate-600"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -377,103 +365,69 @@ export function NewsView() {
         symbolFilter={symbolFilter}
         onSymbolChange={setSymbolFilter}
         totalCount={totalCount}
-        tradedCount={tradedCount}
+        triggeredCount={triggeredCount}
         skippedCount={skippedCount}
+        hideNoTickers={hideNoTickers}
+        onHideNoTickersChange={setHideNoTickers}
       />
 
       {/* Skip reasons panel */}
-      {statusFilter !== 'traded' && Object.keys(skipReasons).length > 0 && (
+      {statusFilter !== 'triggered' && Object.keys(skipReasons).length > 0 && (
         <SkipReasonsPanel skipReasons={skipReasons} />
       )}
 
-      {/* Loading/Error for historical */}
-      {!useLiveData && loading && (
+      {/* Loading/Error */}
+      {loading && (
         <div className="text-center text-gray-400 py-8">Loading...</div>
       )}
-      {!useLiveData && error && (
+      {error && (
         <div className="text-center text-red-400 py-8">{error}</div>
       )}
 
       {/* News Items */}
       <div className="space-y-3">
-        {useLiveData ? (
-          // Live feed items
-          filteredLiveItems.length === 0 ? (
+        {!loading && !error && (
+          filteredNews.length === 0 ? (
             <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
               <p className="text-gray-400">
-                {connected
-                  ? feedItems.length === 0
-                    ? 'Waiting for news events...'
-                    : 'No items match filters'
-                  : 'Connecting to stream...'}
+                {news.length === 0 ? 'No news found for this period' : 'No items match filters'}
               </p>
             </div>
           ) : (
-            filteredLiveItems.slice(0, 50).map((item) => (
-              <NewsCard
-                key={item.news_id}
-                newsId={item.news_id}
-                headline={item.headline}
-                tickers={item.tickers}
-                source={item.source}
-                pubTime={item.pub_time}
-                newsAgeMs={item.news_age_ms}
-                receivedAt={item.received_at}
-                status={item.status}
-                decision={item.decision}
-                skipReason={item.skip_reason}
-                showRelativeTime={true}
-                expandable={true}
-                defaultExpanded={true}
-                pipelineSteps={getPipelineSteps(item.news_id)}
-                strategies={item.strategies}
-                linkTo={`/news/${item.news_id}`}
-              />
-            ))
-          )
-        ) : (
-          // Historical items
-          !loading && !error && (
-            historicalNews.length === 0 ? (
-              <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
-                <p className="text-gray-400">No news found for this period</p>
-              </div>
-            ) : (
-              historicalNews.slice(0, 100).map((item) => {
-                const newsStatus = getNewsStatus(item)
-                const skipReason = item.skip_reason ||
-                  (item.decision?.startsWith('skip_')
-                    ? item.decision.replace('skip_', '').replace(/_/g, ' ')
-                    : undefined)
+            filteredNews.slice(0, 100).map((item) => {
+              const newsStatus = getNewsStatus(item)
+              const skipReason = item.skip_reason ||
+                (item.decision?.startsWith('skip_')
+                  ? item.decision.replace('skip_', '').replace(/_/g, ' ')
+                  : undefined)
 
-                return (
-                  <NewsCard
-                    key={item.id}
-                    newsId={item.id}
-                    headline={item.headline}
-                    tickers={item.tickers}
-                    source={item.source}
-                    pubTime={item.pub_time}
-                    newsAgeMs={item.news_age_ms}
-                    status={newsStatus}
-                    skipReason={skipReason}
-                    showRelativeTime={false}
-                    expandable={true}
-                    defaultExpanded={false}
-                    pipelineSteps={expandedPipelines.get(item.id)}
-                    pipelineLoading={loadingPipelines.has(item.id)}
-                    onToggleExpand={() => handlePipelineExpand(item.id)}
-                    linkTo={`/news/${item.id}`}
-                  />
-                )
-              })
-            )
+              return (
+                <NewsCard
+                  key={item.id}
+                  newsId={item.id}
+                  headline={item.headline}
+                  tickers={item.tickers}
+                  source={item.source}
+                  pubTime={item.pub_time}
+                  newsAgeMs={item.news_age_ms}
+                  status={newsStatus}
+                  skipReason={skipReason}
+                  showRelativeTime={isLiveView}
+                  expandable={true}
+                  defaultExpanded={isLiveView}
+                  pipelineSteps={expandedPipelines.get(item.id)}
+                  pipelineLoading={loadingPipelines.has(item.id)}
+                  onToggleExpand={() => handlePipelineExpand(item.id)}
+                  linkTo={`/news/${item.id}`}
+                />
+              )
+            })
           )
         )}
       </div>
 
-      {/* Quick Stats (live mode only) */}
-      {useLiveData && summaryStats && (
+      {/* Quick Stats */}
+      {summaryStats && (
         <div className="mt-6 rounded-lg border border-slate-700 bg-slate-800 p-4">
           <h3 className="mb-2 text-sm font-medium text-gray-400">
             Today's Summary
@@ -483,9 +437,9 @@ export function NewsView() {
               News: <strong className="text-white">{summaryStats.news.total}</strong>
             </span>
             <span>
-              Traded:{' '}
+              Triggered:{' '}
               <strong className="text-green-400">
-                {summaryStats.news.traded} ({summaryStats.news.traded_percent.toFixed(0)}%)
+                {summaryStats.news.triggered} ({summaryStats.news.triggered_percent.toFixed(0)}%)
               </strong>
             </span>
             <span>

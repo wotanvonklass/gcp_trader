@@ -17,6 +17,7 @@ import { calculateEMAs, formatEMAForChart } from '../indicators'
 interface TradingChartProps {
   bars: OHLCVBar[]
   newsTime?: number // timestamp in ms - when news was published
+  receivedTime?: number // timestamp in ms - when we received the news
   entryTime?: number // timestamp in ms - when entry was filled
   entryPrice?: number
   exitTime?: number // timestamp in ms - when exit was filled
@@ -36,9 +37,20 @@ interface HoveredData {
   changePercent: number
 }
 
+// Format milliseconds timestamp to HH:MM:SS.mmm
+function formatMsTime(timestampMs: number): string {
+  const date = new Date(timestampMs)
+  const hours = date.getUTCHours().toString().padStart(2, '0')
+  const mins = date.getUTCMinutes().toString().padStart(2, '0')
+  const secs = date.getUTCSeconds().toString().padStart(2, '0')
+  const ms = date.getUTCMilliseconds().toString().padStart(3, '0')
+  return `${hours}:${mins}:${secs}.${ms}`
+}
+
 export function TradingChart({
   bars,
   newsTime,
+  receivedTime,
   entryTime,
   entryPrice,
   exitTime,
@@ -64,13 +76,25 @@ export function TradingChart({
   useEffect(() => {
     if (!containerRef.current || bars.length === 0) return
 
-    // Create a lookup map for volume data
+    // Create a lookup map for volume data (key is decimal timestamp in seconds)
     const volumeMap = new Map<number, number>()
     bars.forEach((bar) => {
-      volumeMap.set(Math.floor(bar.t / 1000), bar.v)
+      volumeMap.set(bar.t / 1000, bar.v)
     })
 
-    // Create chart with dark theme
+    // Time formatter for tooltips (with ms)
+    const msTimeFormatter = (time: number) => formatMsTime(time * 1000)
+
+    // Simple seconds formatter for x-axis labels
+    const secondsFormatter = (time: number) => {
+      const date = new Date(time * 1000)
+      const h = date.getUTCHours().toString().padStart(2, '0')
+      const m = date.getUTCMinutes().toString().padStart(2, '0')
+      const s = date.getUTCSeconds().toString().padStart(2, '0')
+      return `${h}:${m}:${s}`
+    }
+
+    // Create chart with dark theme and custom time formatters
     const chart = createChart(containerRef.current, {
       layout: {
         background: { color: '#1e293b' },
@@ -80,9 +104,13 @@ export function TradingChart({
         vertLines: { color: '#334155' },
         horzLines: { color: '#334155' },
       },
+      localization: {
+        timeFormatter: msTimeFormatter,
+      },
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
+        tickMarkFormatter: secondsFormatter,
       },
     })
 
@@ -95,9 +123,9 @@ export function TradingChart({
       borderVisible: false,
     })
 
-    // Convert bars to chart format (time in seconds as UTCTimestamp)
+    // Convert bars to chart format (time as decimal seconds for ms precision)
     const candleData = bars.map((bar) => ({
-      time: Math.floor(bar.t / 1000) as Time,
+      time: (bar.t / 1000) as Time,
       open: bar.o,
       high: bar.h,
       low: bar.l,
@@ -115,7 +143,7 @@ export function TradingChart({
     })
 
     const volumeData = bars.map((bar) => ({
-      time: Math.floor(bar.t / 1000) as Time,
+      time: (bar.t / 1000) as Time,
       value: bar.v,
       color: bar.c >= bar.o ? '#22c55e40' : '#ef444440',
     }))
@@ -174,25 +202,36 @@ export function TradingChart({
       })
     }
 
-    // Entry marker (green arrow up)
+    // Received marker (cyan square) - when we received the news
+    if (receivedTime) {
+      markers.push({
+        time: Math.floor(receivedTime / 1000) as Time,
+        position: 'belowBar',
+        color: '#06b6d4', // cyan
+        shape: 'square',
+        text: 'RECEIVED',
+      })
+    }
+
+    // Buy marker (green arrow up)
     if (entryTime && entryPrice) {
       markers.push({
         time: Math.floor(entryTime / 1000) as Time,
         position: 'belowBar',
         color: '#22c55e', // green
         shape: 'arrowUp',
-        text: `Entry $${entryPrice.toFixed(2)}`,
+        text: `BUY $${entryPrice.toFixed(2)}`,
       })
     }
 
-    // Exit marker (red arrow down)
+    // Sell marker (red arrow down)
     if (exitTime && exitPrice) {
       markers.push({
         time: Math.floor(exitTime / 1000) as Time,
         position: 'aboveBar',
         color: '#ef4444', // red
         shape: 'arrowDown',
-        text: `Exit $${exitPrice.toFixed(2)}`,
+        text: `SELL $${exitPrice.toFixed(2)}`,
       })
     }
 
@@ -209,19 +248,13 @@ export function TradingChart({
 
       const candleData = param.seriesData.get(candleSeries as ISeriesApi<SeriesType>)
       if (candleData && 'open' in candleData) {
-        const timeNum = param.time as number
-        const volume = volumeMap.get(timeNum) || 0
+        const timeSeconds = param.time as number
+        const volume = volumeMap.get(timeSeconds) || 0
         const change = candleData.close - candleData.open
         const changePercent = (change / candleData.open) * 100
 
-        // Format time
-        const date = new Date(timeNum * 1000)
-        const timeStr = date.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        })
+        // Format time with milliseconds
+        const timeStr = formatMsTime(timeSeconds * 1000)
 
         setHoveredData({
           time: timeStr,
@@ -254,7 +287,7 @@ export function TradingChart({
       resizeObserver.disconnect()
       chart.remove()
     }
-  }, [bars, newsTime, entryTime, entryPrice, exitTime, exitPrice, emasVisible, emaData])
+  }, [bars, newsTime, receivedTime, entryTime, entryPrice, exitTime, exitPrice, emasVisible, emaData])
 
   // Format number for display
   const formatPrice = (price: number) => {

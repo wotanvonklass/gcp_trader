@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { useEventStream } from './hooks/useEventStream'
-import { usePakoStore } from './store'
+import { useTorbiStore } from './store'
 import {
   ActiveStrategiesView,
   PipelineView,
@@ -24,11 +23,8 @@ const navTabs: NavTab[] = [
 ]
 
 function App() {
-  // Connect to SSE stream
-  useEventStream()
-
   // Get active strategies count from store
-  const { getActiveStrategiesArray, connected } = usePakoStore()
+  const { getActiveStrategiesArray } = useTorbiStore()
   const activeStrategies = getActiveStrategiesArray().length
 
   // Settings dropdown state
@@ -42,7 +38,7 @@ function App() {
           {/* Logo and main nav */}
           <div className="flex items-center gap-6">
             <NavLink to="/" className="text-xl font-bold text-white hover:text-blue-400">
-              PAKO
+              TORBI
             </NavLink>
 
             {/* Main Navigation Tabs */}
@@ -71,22 +67,8 @@ function App() {
             </nav>
           </div>
 
-          {/* Right side: connection + settings */}
+          {/* Right side: settings */}
           <div className="flex items-center gap-4">
-            {/* Connection indicator */}
-            <span
-              className={`flex items-center gap-1.5 text-xs ${
-                connected ? 'text-green-400' : 'text-gray-500'
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  connected ? 'bg-green-500' : 'bg-gray-500'
-                }`}
-              ></span>
-              {connected ? 'Live' : 'Offline'}
-            </span>
-
             {/* Settings dropdown */}
             <div className="relative">
               <button

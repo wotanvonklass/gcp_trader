@@ -104,10 +104,10 @@ def print_news_summary(db, days: int = 1):
         return
 
     total = summary.get('total_news', 0)
-    traded = summary.get('traded', 0)
+    triggered = summary.get('triggered', 0)
 
     print(f"Total News Received: {total}")
-    print(f"Traded: {traded} ({traded/total*100:.1f}%)" if total > 0 else "Traded: 0")
+    print(f"Triggered: {triggered} ({triggered/total*100:.1f}%)" if total > 0 else "Triggered: 0")
     print(f"Total Strategies Spawned: {summary.get('total_strategies', 0)}")
     print()
     print("Skip Reasons:")

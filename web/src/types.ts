@@ -1,5 +1,5 @@
 /**
- * Type definitions for Pako Web dashboard.
+ * Type definitions for Torbi Web dashboard.
  * These mirror the backend API models.
  */
 
@@ -135,7 +135,7 @@ export interface ActiveStrategy {
 // News Item (aggregated view)
 // ==============================================================================
 
-export type FeedItemStatus = 'processing' | 'traded' | 'skipped'
+export type FeedItemStatus = 'processing' | 'triggered' | 'skipped'
 
 export interface FeedItem {
   news_id: string
@@ -266,7 +266,7 @@ export interface LatencyResponse {
 export interface SkipAnalysis {
   period: string
   total: number
-  traded: number
+  triggered: number
   skipped: number
   by_reason: { reason: string; count: number; percentage: number }[]
   near_misses: unknown[]
@@ -286,8 +286,8 @@ export interface SummaryStats {
   period: string
   news: {
     total: number
-    traded: number
-    traded_percent: number
+    triggered: number
+    triggered_percent: number
     skipped: number
     pending: number
     skip_reasons?: Record<string, number>

@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { usePakoStore } from '../store'
+import { useTorbiStore } from '../store'
 import {
   formatCurrency,
   formatPercent,
@@ -20,7 +20,7 @@ import {
 import type { ActiveStrategy } from '../types'
 
 export function ActiveStrategiesView() {
-  const { getActiveStrategiesArray } = usePakoStore()
+  const { getActiveStrategiesArray } = useTorbiStore()
   const strategies = getActiveStrategiesArray()
 
   // Update countdown timers

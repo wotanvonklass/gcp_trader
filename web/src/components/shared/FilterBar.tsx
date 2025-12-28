@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 
-export type StatusFilter = 'all' | 'traded' | 'skipped'
+export type StatusFilter = 'all' | 'triggered' | 'skipped'
 
 export interface FilterBarProps {
   // Status filter
@@ -22,8 +22,12 @@ export interface FilterBarProps {
 
   // Summary stats to display
   totalCount?: number
-  tradedCount?: number
+  triggeredCount?: number
   skippedCount?: number
+
+  // Hide news without tickers
+  hideNoTickers?: boolean
+  onHideNoTickersChange?: (hide: boolean) => void
 }
 
 export function FilterBar({
@@ -35,8 +39,10 @@ export function FilterBar({
   onLimitChange,
   limitOptions = [50, 100, 250, 500],
   totalCount,
-  tradedCount,
+  triggeredCount,
   skippedCount,
+  hideNoTickers = true,
+  onHideNoTickersChange,
 }: FilterBarProps) {
   // Local state for debounced symbol input
   const [symbolInput, setSymbolInput] = useState(symbolFilter)
@@ -63,7 +69,7 @@ export function FilterBar({
         {/* Status filter */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-400">Status:</span>
-          {(['all', 'traded', 'skipped'] as const).map((f) => (
+          {(['all', 'triggered', 'skipped'] as const).map((f) => (
             <button
               key={f}
               onClick={() => onStatusChange(f)}
@@ -107,19 +113,32 @@ export function FilterBar({
             </select>
           </div>
         )}
+
+        {/* Show news without tickers */}
+        {onHideNoTickersChange && (
+          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!hideNoTickers}
+              onChange={(e) => onHideNoTickersChange(!e.target.checked)}
+              className="rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+            />
+            <span>Show news wo tickers</span>
+          </label>
+        )}
       </div>
 
       {/* Summary stats row */}
-      {(totalCount !== undefined || tradedCount !== undefined || skippedCount !== undefined) && (
+      {(totalCount !== undefined || triggeredCount !== undefined || skippedCount !== undefined) && (
         <div className="flex gap-6 text-sm">
           {totalCount !== undefined && (
             <span>
               Total: <strong className="text-white">{totalCount}</strong>
             </span>
           )}
-          {tradedCount !== undefined && (
+          {triggeredCount !== undefined && (
             <span>
-              Traded: <strong className="text-green-400">{tradedCount}</strong>
+              Triggered: <strong className="text-green-400">{triggeredCount}</strong>
             </span>
           )}
           {skippedCount !== undefined && (

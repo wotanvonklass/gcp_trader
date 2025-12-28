@@ -100,6 +100,7 @@ class PubSubNewsControllerConfig(ActorConfig, frozen=True):
     # News filtering
     min_news_age_seconds: int = 2
     max_news_age_seconds: int = 30
+    max_tickers: int = 3  # Skip news with more tickers than this
 
     # Default trading parameters (used when strategies_json is empty)
     volume_percentage: float = 0.05
@@ -480,18 +481,18 @@ class PubSubNewsController(Controller):
                 emit_news_decision(news_id=news_id, decision='skip', skip_reason='too_old')
                 return
 
+            # Check if too many tickers
+            if len(tickers) > self._controller_config.max_tickers:
+                self.log.info(f"⏭️  [TRACE:{correlation_id}] Too many tickers: {len(tickers)} > {self._controller_config.max_tickers}")
+                if self._trade_db and news_id:
+                    self._trade_db.update_news_decision(news_id, 'skip_too_many_tickers')
+                emit_news_decision(news_id=news_id, decision='skip', skip_reason='too_many_tickers')
+                return
+
             # Process each ticker
             for ticker in tickers:
                 # Clean ticker (remove exchange prefix if present)
                 symbol = ticker.split(':')[-1]
-
-                # Check if already has position or strategy for this ticker
-                if self._has_position_or_strategy(symbol):
-                    self.log.info(f"⏭️  [TRACE:{correlation_id}] Skipping {symbol} - already has position/strategy")
-                    if self._trade_db and news_id:
-                        self._trade_db.update_news_decision(news_id, 'skip_position_exists')
-                    emit_news_decision(news_id=news_id, decision='skip', skip_reason='position_exists')
-                    continue
 
                 # Get current price from Polygon (volume check moved to strategies)
                 self.log.info(f"📊 [TRACE:{correlation_id}] Getting price for {symbol} from Polygon...")
@@ -670,57 +671,6 @@ class PubSubNewsController(Controller):
 
         self.log.info(f"   ✅ [TRACE:{correlation_id}] DECISION: Trade - position size ${position_size:,.2f}")
         return position_size
-
-    def _has_position_or_strategy(self, ticker: str) -> bool:
-        """Check if there's already a position or running strategy for this ticker."""
-        # Check for running strategies
-        all_strategies = self._trader.strategies()
-        for strategy in all_strategies:
-            if hasattr(strategy, 'ticker') and strategy.ticker == ticker:
-                if strategy.state.name == "RUNNING":
-                    self.log.debug(f"Found running strategy for {ticker}")
-                    return True
-
-        # Check for existing positions in NautilusTrader cache
-        from nautilus_trader.model.identifiers import InstrumentId
-        try:
-            instrument_id = InstrumentId.from_str(f"{ticker}.ALPACA")
-            positions = self._trader.portfolio.positions(instrument_id=instrument_id)
-
-            for position in positions:
-                if position.is_open():
-                    self.log.debug(f"Found open position in portfolio for {ticker}")
-                    return True
-        except:
-            pass
-
-        # Also check Alpaca API directly (positions may exist but not be in NautilusTrader cache after restart)
-        try:
-            import requests
-            import os
-
-            api_key = os.environ.get('ALPACA_API_KEY')
-            secret_key = os.environ.get('ALPACA_SECRET_KEY')
-
-            if api_key and secret_key:
-                url = f"https://paper-api.alpaca.markets/v2/positions/{ticker}"
-                headers = {
-                    'APCA-API-KEY-ID': api_key,
-                    'APCA-API-SECRET-KEY': secret_key
-                }
-
-                response = requests.get(url, headers=headers, timeout=5)
-                if response.status_code == 200:
-                    position_data = response.json()
-                    qty = float(position_data.get('qty', 0))
-                    if qty != 0:
-                        self.log.info(f"🛡️ Found existing Alpaca position for {ticker}: {qty} shares")
-                        return True
-        except Exception as e:
-            self.log.debug(f"Alpaca position check failed for {ticker}: {e}")
-            pass
-
-        return False
 
     def _spawn_news_trading_strategy(self, ticker: str, position_size: float, volume_data: dict, headline: str, pub_time: datetime, url: str = "", correlation_id: str = "", news_id: str = ""):
         """Spawn trading strategies for each StrategySpec in the configuration.

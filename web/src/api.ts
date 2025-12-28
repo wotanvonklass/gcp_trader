@@ -1,5 +1,5 @@
 /**
- * API client for Pako News API.
+ * API client for Torbi News API.
  */
 
 import type {
@@ -69,14 +69,14 @@ export async function getDetailedHealth(): Promise<DetailedHealthResponse> {
 
 export async function getNews(options?: {
   limit?: number
-  traded_only?: boolean
+  triggered_only?: boolean
   from_date?: string
   to_date?: string
   symbol?: string
 }): Promise<NewsEvent[]> {
   const params = new URLSearchParams()
   if (options?.limit) params.set('limit', String(options.limit))
-  if (options?.traded_only) params.set('traded_only', 'true')
+  if (options?.triggered_only) params.set('triggered_only', 'true')
   if (options?.from_date) params.set('from_date', options.from_date)
   if (options?.to_date) params.set('to_date', options.to_date)
   if (options?.symbol) params.set('symbol', options.symbol)
@@ -247,6 +247,20 @@ export async function getMarketBars(
     timespan,
   })
   return fetchApi(`/market/bars/${ticker}?${params}`)
+}
+
+export async function getMarketBarsMs(
+  ticker: string,
+  fromTs: number,
+  toTs: number,
+  intervalMs: number = 100
+): Promise<MarketBarsResponse> {
+  const params = new URLSearchParams({
+    from_ts: String(fromTs),
+    to_ts: String(toTs),
+    interval_ms: String(intervalMs),
+  })
+  return fetchApi(`/market/bars/${ticker}/ms?${params}`)
 }
 
 // ==============================================================================

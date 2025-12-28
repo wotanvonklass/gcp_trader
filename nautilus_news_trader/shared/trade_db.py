@@ -392,7 +392,7 @@ class TradeDatabase:
                 cursor.execute("""
                     SELECT
                         COUNT(*) as total_news,
-                        SUM(CASE WHEN decision = 'trade' THEN 1 ELSE 0 END) as traded,
+                        SUM(CASE WHEN decision = 'trade' THEN 1 ELSE 0 END) as triggered,
                         SUM(CASE WHEN decision = 'skip_no_volume' THEN 1 ELSE 0 END) as skip_no_volume,
                         SUM(CASE WHEN decision = 'skip_too_old' THEN 1 ELSE 0 END) as skip_too_old,
                         SUM(CASE WHEN decision = 'skip_no_tickers' THEN 1 ELSE 0 END) as skip_no_tickers,
@@ -437,7 +437,7 @@ class TradeDatabase:
     def fetch_news_events_json(
         self,
         limit: int = 100,
-        traded_only: bool = False,
+        triggered_only: bool = False,
         symbol: str = None,
         from_date: str = None,
         to_date: str = None,
@@ -447,7 +447,7 @@ class TradeDatabase:
 
         Args:
             limit: Maximum number of events to return
-            traded_only: If True, only return events with decision='trade'
+            triggered_only: If True, only return events with decision='trade'
             symbol: If provided, filter to events containing this ticker
             from_date: If provided, only return events from this date (ISO format or 'today')
             to_date: If provided, only return events until this date (ISO format)
@@ -473,7 +473,7 @@ class TradeDatabase:
                 """
                 params = []
 
-                if traded_only:
+                if triggered_only:
                     query += " AND decision = 'trade'"
 
                 if symbol:

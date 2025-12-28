@@ -79,7 +79,7 @@ function TradesListView({
       setLoading(true)
       setError(null)
       try {
-        const newsEvents = await getNews({ limit: 100, traded_only: true })
+        const newsEvents = await getNews({ limit: 100, triggered_only: true })
         const tradesWithNews: TradeWithNews[] = []
         for (const news of newsEvents) {
           try {

@@ -24,7 +24,7 @@ export interface NewsCardProps {
   receivedAt?: string
 
   // Status
-  status: 'processing' | 'traded' | 'skipped'
+  status: 'processing' | 'triggered' | 'skipped'
   decision?: string
   skipReason?: string
 
@@ -81,7 +81,7 @@ export function NewsCard({
 
   // Status text for non-live items
   const getStatusText = () => {
-    if (status === 'traded') return 'TRADED'
+    if (status === 'triggered') return 'TRIGGERED'
     if (status === 'skipped') {
       return skipReason ? `SKIP: ${skipReason}` : 'SKIPPED'
     }
@@ -89,7 +89,7 @@ export function NewsCard({
   }
 
   const statusColorClass =
-    status === 'traded'
+    status === 'triggered'
       ? 'text-green-400'
       : status === 'skipped'
       ? 'text-gray-500'
@@ -181,7 +181,7 @@ export function NewsCard({
                 <PipelineStepRow key={i} step={step} />
               ))}
               {/* Active position info */}
-              {status === 'traded' && strategies?.some((s) => s.status === 'in_position') && (
+              {status === 'triggered' && strategies?.some((s) => s.status === 'in_position') && (
                 <ActivePositionInfo strategies={strategies} />
               )}
             </>

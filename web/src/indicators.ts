@@ -242,13 +242,14 @@ export interface EMALineData {
 
 /**
  * Format EMA data for lightweight-charts LineSeries.
+ * Uses decimal timestamps for sub-second bar support.
  */
 export function formatEMAForChart(
   bars: OHLCVBar[],
   emaValues: number[]
 ): EMALineData[] {
   return bars.map((bar, i) => ({
-    time: Math.floor(bar.t / 1000),
+    time: bar.t / 1000,  // Decimal seconds for ms precision
     value: emaValues[i],
   }))
 }

@@ -4,12 +4,10 @@
 
 import { useEffect, useState } from 'react'
 import { getHealth } from '../api'
-import { usePakoStore } from '../store'
 import { formatRelativeTime, formatDateTime } from '../utils'
 import type { HealthStatus } from '../types'
 
 export function SystemHealthView() {
-  const { connected, lastEventTime } = usePakoStore()
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -79,13 +77,13 @@ export function SystemHealthView() {
           }
         />
 
-        {/* SSE Connection */}
+        {/* Polling Status */}
         <ComponentCard
-          name="SSE Stream"
-          status={connected ? 'healthy' : 'error'}
+          name="Dashboard"
+          status="healthy"
           details={[
-            `Status: ${connected ? 'Connected' : 'Disconnected'}`,
-            `Last event: ${formatRelativeTime(lastEventTime)}`,
+            `Mode: Polling (10s interval)`,
+            `Last check: ${formatRelativeTime(lastCheck)}`,
           ]}
         />
 
@@ -161,18 +159,8 @@ export function SystemHealthView() {
             error={error !== null}
           />
           <ChecklistItem
-            label="SSE stream connected"
-            checked={connected}
-            error={!connected}
-          />
-          <ChecklistItem
-            label="Receiving events"
-            checked={lastEventTime !== null}
-            warning={
-              lastEventTime
-                ? Date.now() - new Date(lastEventTime).getTime() > 60000
-                : true
-            }
+            label="Dashboard polling active"
+            checked={true}
           />
           <ChecklistItem
             label="Trading system active"
@@ -188,12 +176,6 @@ export function SystemHealthView() {
           Troubleshooting
         </h3>
         <div className="space-y-3 text-sm text-gray-400">
-          {!connected && (
-            <TroubleshootItem
-              issue="SSE not connected"
-              suggestion="Check if News API is running and accessible. The browser may have closed the connection due to inactivity."
-            />
-          )}
           {error && (
             <TroubleshootItem
               issue="API health check failed"
@@ -206,13 +188,9 @@ export function SystemHealthView() {
               suggestion="The news trader process may not be running. Check the server logs for errors."
             />
           )}
-          {lastEventTime &&
-            Date.now() - new Date(lastEventTime).getTime() > 120000 && (
-              <TroubleshootItem
-                issue="No recent events"
-                suggestion="This may be normal during market off-hours. Check if news is being published to Pub/Sub."
-              />
-            )}
+          {!error && health && (
+            <div className="text-green-400">All systems operational.</div>
+          )}
         </div>
       </div>
 

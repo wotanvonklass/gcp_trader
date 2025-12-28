@@ -97,6 +97,7 @@ export function NewsHistoryView() {
   const statusFilter = (searchParams.get('filter') as StatusFilter) || 'all'
   const symbolFilter = searchParams.get('symbol') || ''
   const limit = parseInt(searchParams.get('limit') || '100', 10)
+  const hideNoTickers = searchParams.get('hideNoTickers') !== 'false' // default true
 
   // Update URL when filters change
   const setStatusFilter = (newFilter: StatusFilter) => {
@@ -129,6 +130,16 @@ export function NewsHistoryView() {
     setSearchParams(params)
   }
 
+  const setHideNoTickers = (hide: boolean) => {
+    const params = new URLSearchParams(searchParams)
+    if (hide) {
+      params.delete('hideNoTickers') // default is true
+    } else {
+      params.set('hideNoTickers', 'false')
+    }
+    setSearchParams(params)
+  }
+
   // Fetch news data
   useEffect(() => {
     const fetchNews = async () => {
@@ -141,7 +152,7 @@ export function NewsHistoryView() {
         } else {
           data = await getNews({
             limit,
-            traded_only: statusFilter === 'traded',
+            triggered_only: statusFilter === 'triggered',
           })
         }
 
@@ -185,17 +196,22 @@ export function NewsHistoryView() {
     })
   }, [expandedPipelines, loadingPipelines])
 
+  // Filter news by tickers
+  const filteredNews = hideNoTickers
+    ? news.filter((n) => n.tickers && n.tickers.length > 0)
+    : news
+
   // Summary stats
-  const totalCount = news.length
-  const tradedCount = news.filter((n) => n.decision === 'trade').length
-  const skippedCount = news.filter((n) => n.decision?.startsWith('skip')).length
+  const totalCount = filteredNews.length
+  const triggeredCount = filteredNews.filter((n) => n.decision === 'trade').length
+  const skippedCount = filteredNews.filter((n) => n.decision?.startsWith('skip')).length
 
   // Skip reasons
-  const skipReasons = computeSkipReasons(news)
+  const skipReasons = computeSkipReasons(filteredNews)
 
   // Determine status for each news item
-  const getNewsStatus = (item: NewsEvent): 'processing' | 'traded' | 'skipped' => {
-    if (item.decision === 'trade') return 'traded'
+  const getNewsStatus = (item: NewsEvent): 'processing' | 'triggered' | 'skipped' => {
+    if (item.decision === 'trade') return 'triggered'
     if (item.decision?.startsWith('skip')) return 'skipped'
     return 'processing'
   }
@@ -211,12 +227,14 @@ export function NewsHistoryView() {
         limit={limit}
         onLimitChange={setLimit}
         totalCount={totalCount}
-        tradedCount={tradedCount}
+        triggeredCount={triggeredCount}
         skippedCount={skippedCount}
+        hideNoTickers={hideNoTickers}
+        onHideNoTickersChange={setHideNoTickers}
       />
 
       {/* Skip reasons panel */}
-      {statusFilter !== 'traded' && Object.keys(skipReasons).length > 0 && (
+      {statusFilter !== 'triggered' && Object.keys(skipReasons).length > 0 && (
         <SkipReasonsPanel skipReasons={skipReasons} />
       )}
 
@@ -231,12 +249,12 @@ export function NewsHistoryView() {
       {/* News List */}
       {!loading && !error && (
         <div className="space-y-3">
-          {news.length === 0 ? (
+          {filteredNews.length === 0 ? (
             <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
               <p className="text-gray-400">No news found</p>
             </div>
           ) : (
-            news.map((item) => {
+            filteredNews.map((item) => {
               const newsStatus = getNewsStatus(item)
               const skipReason = item.skip_reason ||
                 (item.decision?.startsWith('skip_')

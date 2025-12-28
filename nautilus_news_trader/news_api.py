@@ -1079,6 +1079,135 @@ async def get_market_bars(
         raise HTTPException(status_code=502, detail=f"Failed to fetch from Polygon: {str(e)}")
 
 
+@app.get("/market/bars/{ticker}/ms")
+async def get_market_bars_ms(
+    ticker: str,
+    from_ts: int = Query(..., description="Start timestamp in milliseconds"),
+    to_ts: int = Query(..., description="End timestamp in milliseconds"),
+    interval_ms: int = Query(default=100, description="Bar interval: 100, 250, or 500 ms"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+):
+    """Fetch trades from Polygon and aggregate into millisecond OHLCV bars."""
+    verify_api_key(x_api_key)
+
+    if not POLYGON_API_KEY:
+        raise HTTPException(status_code=500, detail="Polygon API key not configured")
+
+    # Validate interval
+    if interval_ms not in (100, 250, 500):
+        raise HTTPException(status_code=400, detail="interval_ms must be 100, 250, or 500")
+
+    # Convert ms timestamps to nanoseconds for Polygon API
+    from_ns = from_ts * 1_000_000
+    to_ns = to_ts * 1_000_000
+
+    # Fetch all trades in the time range (with pagination)
+    all_trades = []
+    next_url = None
+    base_url = f"https://api.polygon.io/v3/trades/{ticker}"
+
+    while True:
+        if next_url:
+            url = next_url
+            params = {"apiKey": POLYGON_API_KEY}
+        else:
+            url = base_url
+            params = {
+                "timestamp.gte": from_ns,
+                "timestamp.lte": to_ns,
+                "order": "asc",
+                "limit": 50000,
+                "apiKey": POLYGON_API_KEY,
+            }
+
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Polygon API error: {response.text}"
+                )
+            data = response.json()
+            trades = data.get("results", [])
+            all_trades.extend(trades)
+
+            # Check for pagination
+            next_url = data.get("next_url")
+            if not next_url or len(trades) == 0:
+                break
+
+        except requests.RequestException as e:
+            raise HTTPException(status_code=502, detail=f"Failed to fetch from Polygon: {str(e)}")
+
+    if not all_trades:
+        return {"results": [], "resultsCount": 0, "ticker": ticker, "status": "OK"}
+
+    # Aggregate trades into millisecond bars
+    bars = []
+    current_bar = None
+    current_bucket_start = None
+
+    for trade in all_trades:
+        # Use sip_timestamp (nanoseconds) -> convert to milliseconds
+        trade_ts_ns = trade.get("sip_timestamp") or trade.get("participant_timestamp")
+        if not trade_ts_ns:
+            continue
+        trade_ts_ms = trade_ts_ns // 1_000_000
+        price = trade.get("price")
+        size = trade.get("size", 0)
+
+        if price is None:
+            continue
+
+        # Calculate which bucket this trade belongs to
+        bucket_start = (trade_ts_ms // interval_ms) * interval_ms
+
+        if current_bucket_start != bucket_start:
+            # Save previous bar if exists
+            if current_bar:
+                bars.append(current_bar)
+
+            # Start new bar
+            current_bucket_start = bucket_start
+            current_bar = {
+                "t": bucket_start,  # timestamp in ms
+                "o": price,         # open
+                "h": price,         # high
+                "l": price,         # low
+                "c": price,         # close
+                "v": size,          # volume
+                "vw": price * size, # volume-weighted sum (will divide later)
+                "n": 1,             # trade count
+            }
+        else:
+            # Update current bar
+            current_bar["h"] = max(current_bar["h"], price)
+            current_bar["l"] = min(current_bar["l"], price)
+            current_bar["c"] = price
+            current_bar["v"] += size
+            current_bar["vw"] += price * size
+            current_bar["n"] += 1
+
+    # Don't forget the last bar
+    if current_bar:
+        bars.append(current_bar)
+
+    # Calculate VWAP for each bar
+    for bar in bars:
+        if bar["v"] > 0:
+            bar["vw"] = bar["vw"] / bar["v"]
+        else:
+            bar["vw"] = bar["c"]
+
+    return {
+        "results": bars,
+        "resultsCount": len(bars),
+        "ticker": ticker,
+        "status": "OK",
+        "interval_ms": interval_ms,
+    }
+
+
 # ==============================================================================
 # Stats Endpoints
 # ==============================================================================

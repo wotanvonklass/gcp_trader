@@ -1,5 +1,5 @@
 /**
- * Utility functions for Pako Web dashboard.
+ * Utility functions for Torbi Web dashboard.
  */
 
 /**
@@ -147,7 +147,7 @@ export function getStatusClass(status: string): string {
     case 'processing':
     case 'pending_entry':
       return 'text-yellow-400'
-    case 'traded':
+    case 'triggered':
     case 'in_position':
     case 'active':
       return 'text-green-400'
@@ -171,7 +171,7 @@ export function getFeedItemBorderClass(status: string): string {
   switch (status) {
     case 'processing':
       return 'border-yellow-500/50'
-    case 'traded':
+    case 'triggered':
       return 'border-green-500/50'
     case 'skipped':
       return 'border-slate-600'
@@ -188,7 +188,7 @@ export function getStatusIcon(status: string): string {
     case 'processing':
     case 'pending':
       return '\u26A1' // lightning bolt
-    case 'traded':
+    case 'triggered':
     case 'complete':
     case 'completed':
       return '\u2705' // checkmark

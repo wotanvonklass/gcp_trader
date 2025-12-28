@@ -2,7 +2,6 @@
  * Component barrel exports
  */
 
-export { LiveFeedView } from './LiveFeedView'
 export { ActiveStrategiesView } from './ActiveStrategiesView'
 export { PipelineView } from './PipelineView'
 export { TradesView } from './TradesView'
