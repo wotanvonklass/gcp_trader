@@ -137,7 +137,7 @@ export function NewsHistoryView() {
       try {
         let data: NewsEvent[]
         if (symbolFilter.trim()) {
-          data = await getNewsBySymbol(symbolFilter.trim().toUpperCase(), limit)
+          data = await getNewsBySymbol(symbolFilter.trim().toUpperCase(), { limit })
         } else {
           data = await getNews({
             limit,

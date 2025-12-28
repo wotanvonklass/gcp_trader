@@ -439,6 +439,8 @@ class TradeDatabase:
         limit: int = 100,
         traded_only: bool = False,
         symbol: str = None,
+        from_date: str = None,
+        to_date: str = None,
     ) -> List[Dict[str, Any]]:
         """
         Fetch news events formatted for JSON API response.
@@ -447,6 +449,8 @@ class TradeDatabase:
             limit: Maximum number of events to return
             traded_only: If True, only return events with decision='trade'
             symbol: If provided, filter to events containing this ticker
+            from_date: If provided, only return events from this date (ISO format or 'today')
+            to_date: If provided, only return events until this date (ISO format)
 
         Returns:
             List of news event dicts ready for JSON serialization
@@ -459,9 +463,11 @@ class TradeDatabase:
                         headline,
                         tickers,
                         pub_time,
+                        source,
                         decision,
                         skip_reason,
-                        strategies_spawned
+                        strategies_spawned,
+                        age_seconds
                     FROM news_events
                     WHERE 1=1
                 """
@@ -475,6 +481,17 @@ class TradeDatabase:
                     query += " AND tickers LIKE ?"
                     params.append(f'%"{symbol.upper()}"%')
 
+                if from_date:
+                    # Handle 'today' shortcut
+                    if from_date == 'today':
+                        from_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+                    query += " AND date(pub_time) >= date(?)"
+                    params.append(from_date)
+
+                if to_date:
+                    query += " AND date(pub_time) <= date(?)"
+                    params.append(to_date)
+
                 query += " ORDER BY pub_time DESC LIMIT ?"
                 params.append(limit)
 
@@ -487,9 +504,11 @@ class TradeDatabase:
                         "headline": row["headline"],
                         "tickers": json.loads(row["tickers"]) if row["tickers"] else [],
                         "pub_time": row["pub_time"],
+                        "source": row["source"],
                         "decision": row["decision"],
                         "skip_reason": row["skip_reason"],
                         "strategies_spawned": row["strategies_spawned"] or 0,
+                        "news_age_ms": int(row["age_seconds"] * 1000) if row["age_seconds"] else None,
                     })
 
                 return results
@@ -697,6 +716,119 @@ class TradeDatabase:
         except Exception as e:
             print(f"[TradeDB] Error getting strategy by ID: {e}")
             return None
+
+    def fetch_completed_trades(
+        self,
+        limit: int = 100,
+        from_date: str = None,
+        to_date: str = None,
+        ticker: str = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch completed trades (strategies with both entry and exit fills) for Journal.
+
+        Only returns trades where:
+        - Entry order was filled
+        - Exit order was filled
+        - Has real P&L
+
+        Args:
+            limit: Maximum number of trades to return
+            from_date: If provided, only return trades from this date (ISO format or 'today')
+            to_date: If provided, only return trades until this date (ISO format)
+            ticker: If provided, filter to trades for this ticker
+
+        Returns:
+            List of completed trade dicts ready for JSON serialization
+        """
+        try:
+            with self._cursor() as cursor:
+                query = """
+                    SELECT
+                        s.id,
+                        s.news_id,
+                        s.ticker,
+                        s.strategy_type,
+                        s.strategy_name,
+                        s.position_size_usd,
+                        s.started_at,
+                        s.stopped_at,
+                        s.stop_reason,
+                        buy.filled_price as entry_price,
+                        buy.filled_qty as qty,
+                        buy.filled_at as entry_time,
+                        sell.filled_price as exit_price,
+                        sell.filled_at as exit_time,
+                        (sell.filled_price - buy.filled_price) * buy.filled_qty as pnl,
+                        CASE
+                            WHEN buy.filled_price > 0
+                            THEN ((sell.filled_price - buy.filled_price) / buy.filled_price) * 100
+                            ELSE 0
+                        END as pnl_percent,
+                        n.headline,
+                        n.pub_time,
+                        n.source
+                    FROM strategies s
+                    INNER JOIN orders buy ON buy.strategy_id = s.id
+                        AND buy.side = 'buy'
+                        AND buy.status = 'filled'
+                        AND buy.filled_price IS NOT NULL
+                    INNER JOIN orders sell ON sell.strategy_id = s.id
+                        AND sell.side = 'sell'
+                        AND sell.status = 'filled'
+                        AND sell.filled_price IS NOT NULL
+                    LEFT JOIN news_events n ON n.id = s.news_id
+                    WHERE 1=1
+                """
+                params = []
+
+                if ticker:
+                    query += " AND UPPER(s.ticker) = UPPER(?)"
+                    params.append(ticker)
+
+                if from_date:
+                    if from_date == 'today':
+                        from_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+                    query += " AND date(s.stopped_at) >= date(?)"
+                    params.append(from_date)
+
+                if to_date:
+                    query += " AND date(s.stopped_at) <= date(?)"
+                    params.append(to_date)
+
+                query += " ORDER BY s.stopped_at DESC LIMIT ?"
+                params.append(limit)
+
+                cursor.execute(query, params)
+
+                results = []
+                for row in cursor.fetchall():
+                    results.append({
+                        "id": row["id"],
+                        "news_id": row["news_id"],
+                        "ticker": row["ticker"],
+                        "strategy_type": row["strategy_type"],
+                        "strategy_name": row["strategy_name"],
+                        "position_size_usd": row["position_size_usd"],
+                        "entry_price": row["entry_price"],
+                        "exit_price": row["exit_price"],
+                        "entry_time": row["entry_time"],
+                        "exit_time": row["exit_time"],
+                        "qty": row["qty"],
+                        "pnl": row["pnl"],
+                        "pnl_percent": row["pnl_percent"],
+                        "started_at": row["started_at"],
+                        "stopped_at": row["stopped_at"],
+                        "stop_reason": row["stop_reason"],
+                        "headline": row["headline"],
+                        "pub_time": row["pub_time"],
+                        "source": row["source"],
+                    })
+
+                return results
+        except Exception as e:
+            print(f"[TradeDB] Error fetching completed trades: {e}")
+            return []
 
     def close(self):
         """Close database connection."""

@@ -290,9 +290,34 @@ class NewsEvent(BaseModel):
     headline: str
     tickers: List[str]
     pub_time: Optional[str]
+    source: Optional[str] = None
     decision: Optional[str]
     skip_reason: Optional[str]
     strategies_spawned: int
+    news_age_ms: Optional[int] = None
+
+
+class CompletedTrade(BaseModel):
+    """A completed trade with entry and exit fills."""
+    id: str
+    news_id: Optional[str]
+    ticker: str
+    strategy_type: Optional[str]
+    strategy_name: Optional[str]
+    position_size_usd: Optional[float]
+    entry_price: float
+    exit_price: float
+    entry_time: Optional[str]
+    exit_time: Optional[str]
+    qty: float
+    pnl: float
+    pnl_percent: Optional[float]
+    started_at: Optional[str]
+    stopped_at: Optional[str]
+    stop_reason: Optional[str]
+    headline: Optional[str]
+    pub_time: Optional[str]
+    source: Optional[str]
 
 
 class StrategyExecution(BaseModel):
@@ -520,12 +545,21 @@ async def get_news_events(
 async def list_news(
     limit: int = Query(default=100, ge=1, le=1000),
     traded_only: bool = Query(default=False),
+    from_date: Optional[str] = Query(default=None, description="Start date (ISO format or 'today')"),
+    to_date: Optional[str] = Query(default=None, description="End date (ISO format)"),
+    symbol: Optional[str] = Query(default=None, description="Filter by ticker symbol"),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
 ):
     """List news events with optional filters."""
     verify_api_key(x_api_key)
     db = get_trade_db(DB_PATH)
-    events = db.fetch_news_events_json(limit=limit, traded_only=traded_only)
+    events = db.fetch_news_events_json(
+        limit=limit,
+        traded_only=traded_only,
+        from_date=from_date,
+        to_date=to_date,
+        symbol=symbol,
+    )
     return events
 
 
@@ -533,13 +567,40 @@ async def list_news(
 async def get_news_by_symbol(
     symbol: str,
     limit: int = Query(default=20, ge=1, le=500),
+    from_date: Optional[str] = Query(default=None, description="Start date (ISO format or 'today')"),
+    to_date: Optional[str] = Query(default=None, description="End date (ISO format)"),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
 ):
     """Get news events for a specific ticker symbol."""
     verify_api_key(x_api_key)
     db = get_trade_db(DB_PATH)
-    events = db.fetch_news_events_json(limit=limit, symbol=symbol)
+    events = db.fetch_news_events_json(
+        limit=limit,
+        symbol=symbol,
+        from_date=from_date,
+        to_date=to_date,
+    )
     return events
+
+
+@app.get("/trades", response_model=List[CompletedTrade])
+async def list_trades(
+    limit: int = Query(default=100, ge=1, le=1000),
+    from_date: Optional[str] = Query(default=None, description="Start date (ISO format or 'today')"),
+    to_date: Optional[str] = Query(default=None, description="End date (ISO format)"),
+    ticker: Optional[str] = Query(default=None, description="Filter by ticker symbol"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+):
+    """List completed trades with actual fills and P&L (for Journal)."""
+    verify_api_key(x_api_key)
+    db = get_trade_db(DB_PATH)
+    trades = db.fetch_completed_trades(
+        limit=limit,
+        from_date=from_date,
+        to_date=to_date,
+        ticker=ticker,
+    )
+    return trades
 
 
 # ==============================================================================

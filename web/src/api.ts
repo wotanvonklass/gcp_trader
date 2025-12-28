@@ -15,10 +15,12 @@ import type {
   PipelineEvent,
   StrategyDetail,
   MarketBarsResponse,
+  CompletedTrade,
 } from './types'
 
 // Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8100'
+// Use relative URLs in production (same origin), localhost for dev
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 const API_KEY = import.meta.env.VITE_API_KEY || ''
 
 // ==============================================================================
@@ -68,10 +70,16 @@ export async function getDetailedHealth(): Promise<DetailedHealthResponse> {
 export async function getNews(options?: {
   limit?: number
   traded_only?: boolean
+  from_date?: string
+  to_date?: string
+  symbol?: string
 }): Promise<NewsEvent[]> {
   const params = new URLSearchParams()
   if (options?.limit) params.set('limit', String(options.limit))
   if (options?.traded_only) params.set('traded_only', 'true')
+  if (options?.from_date) params.set('from_date', options.from_date)
+  if (options?.to_date) params.set('to_date', options.to_date)
+  if (options?.symbol) params.set('symbol', options.symbol)
 
   const query = params.toString()
   return fetchApi(`/news${query ? `?${query}` : ''}`)
@@ -79,13 +87,35 @@ export async function getNews(options?: {
 
 export async function getNewsBySymbol(
   symbol: string,
-  limit?: number
+  options?: {
+    limit?: number
+    from_date?: string
+    to_date?: string
+  }
 ): Promise<NewsEvent[]> {
   const params = new URLSearchParams()
-  if (limit) params.set('limit', String(limit))
+  if (options?.limit) params.set('limit', String(options.limit))
+  if (options?.from_date) params.set('from_date', options.from_date)
+  if (options?.to_date) params.set('to_date', options.to_date)
 
   const query = params.toString()
   return fetchApi(`/news/${symbol}${query ? `?${query}` : ''}`)
+}
+
+export async function getTrades(options?: {
+  limit?: number
+  from_date?: string
+  to_date?: string
+  ticker?: string
+}): Promise<CompletedTrade[]> {
+  const params = new URLSearchParams()
+  if (options?.limit) params.set('limit', String(options.limit))
+  if (options?.from_date) params.set('from_date', options.from_date)
+  if (options?.to_date) params.set('to_date', options.to_date)
+  if (options?.ticker) params.set('ticker', options.ticker)
+
+  const query = params.toString()
+  return fetchApi(`/trades${query ? `?${query}` : ''}`)
 }
 
 export async function getNewsDetail(newsId: string): Promise<NewsEvent> {
@@ -224,7 +254,8 @@ export async function getMarketBars(
 // ==============================================================================
 
 export function getStreamUrl(): string {
-  const url = new URL('/stream', API_BASE_URL)
+  const baseUrl = API_BASE_URL || window.location.origin
+  const url = new URL('/stream', baseUrl)
   return url.toString()
 }
 

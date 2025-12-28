@@ -1,31 +1,26 @@
+import { useState } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import { useEventStream } from './hooks/useEventStream'
 import { usePakoStore } from './store'
 import {
-  LiveFeedView,
   ActiveStrategiesView,
   PipelineView,
-  TradesView,
-  NewsHistoryView,
   StatsView,
   SystemHealthView,
   ErrorBoundary,
 } from './components'
+import { NewsView } from './components/NewsView'
+import { JournalView } from './components/JournalView'
 
 interface NavTab {
   to: string
   label: string
-  sublabel?: string
 }
 
 const navTabs: NavTab[] = [
-  { to: '/', label: 'Live', sublabel: 'Feed' },
-  { to: '/pipeline', label: 'Pipeline' },
-  { to: '/active', label: 'Active' },
-  { to: '/trades', label: 'Trades' },
-  { to: '/history', label: 'News', sublabel: 'History' },
-  { to: '/stats', label: 'Stats' },
-  { to: '/health', label: 'System', sublabel: 'Health' },
+  { to: '/', label: 'News' },
+  { to: '/positions', label: 'Positions' },
+  { to: '/journal', label: 'Journal' },
 ]
 
 function App() {
@@ -36,25 +31,48 @@ function App() {
   const { getActiveStrategiesArray, connected } = usePakoStore()
   const activeStrategies = getActiveStrategiesArray().length
 
+  // Settings dropdown state
+  const [showSettings, setShowSettings] = useState(false)
+
   return (
     <div className="min-h-screen bg-slate-900 text-gray-200">
       {/* Header */}
       <header className="border-b border-slate-700 bg-slate-800">
         <div className="flex items-center justify-between px-4 py-3">
-          {/* Logo */}
-          <div className="flex items-center gap-4">
+          {/* Logo and main nav */}
+          <div className="flex items-center gap-6">
             <NavLink to="/" className="text-xl font-bold text-white hover:text-blue-400">
               PAKO
             </NavLink>
-            {activeStrategies > 0 && (
-              <NavLink
-                to="/active"
-                className="flex items-center gap-1.5 rounded-full bg-red-500/20 px-3 py-1 text-sm text-red-400 hover:bg-red-500/30"
-              >
-                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500"></span>
-                {activeStrategies} Active
-              </NavLink>
-            )}
+
+            {/* Main Navigation Tabs */}
+            <nav className="flex gap-1">
+              {navTabs.map((tab) => (
+                <NavLink
+                  key={tab.to}
+                  to={tab.to}
+                  end={tab.to === '/'}
+                  className={({ isActive }) =>
+                    `px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      isActive
+                        ? 'bg-slate-700 text-white'
+                        : 'text-gray-400 hover:text-gray-200 hover:bg-slate-700/50'
+                    }`
+                  }
+                >
+                  {tab.label}
+                  {tab.to === '/positions' && activeStrategies > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 text-xs rounded-full bg-red-500/20 text-red-400">
+                      {activeStrategies}
+                    </span>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+
+          {/* Right side: connection + settings */}
+          <div className="flex items-center gap-4">
             {/* Connection indicator */}
             <span
               className={`flex items-center gap-1.5 text-xs ${
@@ -66,68 +84,73 @@ function App() {
                   connected ? 'bg-green-500' : 'bg-gray-500'
                 }`}
               ></span>
-              {connected ? 'Connected' : 'Disconnected'}
+              {connected ? 'Live' : 'Offline'}
             </span>
-          </div>
 
-          {/* Right side controls */}
-          <div className="flex items-center gap-3">
-            <div className="relative group">
-              <select
-                className="rounded-md bg-slate-700 px-3 py-1.5 text-sm text-gray-200 border border-slate-600 cursor-not-allowed opacity-60"
-                disabled
-                title="Trading mode switching coming soon"
+            {/* Settings dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 rounded-md text-gray-400 hover:text-white hover:bg-slate-700 transition-colors"
+                title="Settings"
               >
-                <option>Paper</option>
-                <option>Live</option>
-              </select>
-              <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 hidden group-hover:block text-xs text-gray-500 whitespace-nowrap">
-                Coming soon
-              </span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              {showSettings && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowSettings(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-md shadow-lg z-20">
+                    <NavLink
+                      to="/stats"
+                      onClick={() => setShowSettings(false)}
+                      className="block px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 hover:text-white"
+                    >
+                      Stats
+                    </NavLink>
+                    <NavLink
+                      to="/health"
+                      onClick={() => setShowSettings(false)}
+                      className="block px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 hover:text-white"
+                    >
+                      System Health
+                    </NavLink>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Tab Navigation */}
-        <nav className="flex gap-1 px-4">
-          {navTabs.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              end={tab.to === '/' || tab.to === '/health' || tab.to === '/stats'}
-              className={({ isActive }) =>
-                `px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                  isActive
-                    ? 'bg-slate-900 text-white border-t border-l border-r border-slate-700'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-slate-700/50'
-                }`
-              }
-            >
-              <div className="flex flex-col items-center leading-tight">
-                <span>{tab.label}</span>
-                {tab.sublabel && <span className="text-xs opacity-70">{tab.sublabel}</span>}
-              </div>
-            </NavLink>
-          ))}
-        </nav>
       </header>
 
       {/* Main Content */}
       <main className="p-4">
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<LiveFeedView />} />
-            <Route path="/pipeline" element={<PipelineView />} />
-            <Route path="/pipeline/:newsId" element={<PipelineView />} />
-            <Route path="/active" element={<ActiveStrategiesView />} />
-            <Route path="/active/:strategyId" element={<ActiveStrategiesView />} />
-            <Route path="/trades" element={<TradesView />} />
-            <Route path="/trades/:strategyId" element={<TradesView />} />
-            <Route path="/history" element={<NewsHistoryView />} />
-            <Route path="/history/:newsId" element={<NewsHistoryView />} />
+            {/* Main views */}
+            <Route path="/" element={<NewsView />} />
+            <Route path="/news/:newsId" element={<PipelineView />} />
+            <Route path="/positions" element={<ActiveStrategiesView />} />
+            <Route path="/journal" element={<JournalView />} />
+            <Route path="/journal/:tradeId" element={<JournalView />} />
+
+            {/* Settings pages */}
             <Route path="/stats" element={<StatsView />} />
             <Route path="/health" element={<SystemHealthView />} />
-            {/* Redirect unknown routes to home */}
+
+            {/* Legacy redirects */}
+            <Route path="/active" element={<Navigate to="/positions" replace />} />
+            <Route path="/trades" element={<Navigate to="/journal" replace />} />
+            <Route path="/history" element={<Navigate to="/" replace />} />
+            <Route path="/pipeline" element={<Navigate to="/" replace />} />
+            <Route path="/pipeline/:newsId" element={<Navigate to="/news/:newsId" replace />} />
+
+            {/* Catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>

@@ -205,6 +205,28 @@ export interface StrategyExecution {
   stop_reason?: string
 }
 
+export interface CompletedTrade {
+  id: string
+  news_id?: string
+  ticker: string
+  strategy_type?: string
+  strategy_name?: string
+  position_size_usd?: number
+  entry_price: number
+  exit_price: number
+  entry_time?: string
+  exit_time?: string
+  qty: number
+  pnl: number
+  pnl_percent?: number
+  started_at?: string
+  stopped_at?: string
+  stop_reason?: string
+  headline?: string
+  pub_time?: string
+  source?: string
+}
+
 export interface HealthResponse {
   status: string
 }

@@ -40,6 +40,9 @@ export interface NewsCardProps {
   // Loading state for lazy-loaded pipeline
   pipelineLoading?: boolean
 
+  // Link to detail page
+  linkTo?: string
+
   // Callbacks
   onToggleExpand?: () => void
 }
@@ -60,6 +63,7 @@ export function NewsCard({
   pipelineSteps,
   strategies,
   pipelineLoading = false,
+  linkTo,
   onToggleExpand,
 }: NewsCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -111,10 +115,10 @@ export function NewsCard({
               <span className={statusColorClass}>{getStatusText()}</span>
             )}
             <Link
-              to={`/pipeline/${newsId}`}
+              to={linkTo || `/news/${newsId}`}
               className="ml-2 text-blue-400 hover:text-blue-300"
             >
-              View Pipeline &rarr;
+              Details &rarr;
             </Link>
           </div>
           <p className="mt-1 font-medium text-white">

@@ -11,7 +11,7 @@ import type {
   SSEActiveStrategiesMessage,
 } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8100'
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 const API_KEY = import.meta.env.VITE_API_KEY || ''
 
 const RECONNECT_DELAY = 3000 // 3 seconds
@@ -37,7 +37,8 @@ export function useEventStream() {
     }
 
     // Build URL with API key as query param (EventSource doesn't support headers)
-    const url = new URL('/stream', API_BASE_URL)
+    const baseUrl = API_BASE_URL || window.location.origin
+    const url = new URL('/stream', baseUrl)
     if (API_KEY) {
       url.searchParams.set('api_key', API_KEY)
     }
